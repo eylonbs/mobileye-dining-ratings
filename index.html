@@ -258,7 +258,7 @@
             return React.createElement('div', { className: `glass-card p-6 flex flex-col h-full transition-all ${myRating ? 'border-green-300 bg-green-50' : isLocked ? 'opacity-50 grayscale cursor-not-allowed' : 'hover:border-blue-300'}` }, [
                 React.createElement('div', { className: 'flex justify-between items-start mb-4' }, [
                     React.createElement('span', { className: `category-badge ${badgeClass}` }, category),
-                    othersRatings.length > 0 && React.createElement('div', { className: 'text-right font-black text-gray-800' }, `⭐ ${avg}`)
+                    othersRatings.length > 0 && React.createElement('div', { className: 'text-right font-black text-gray-800' }, `⭐ ${avg} (${othersRatings.length})`)
                 ]),
                 React.createElement('h3', { className: 'text-xl font-black text-gray-800 mb-6 flex-grow' }, dishName),
                 React.createElement('div', { className: 'flex justify-center gap-2 mb-6' },
