@@ -87,8 +87,7 @@
                 });
                 return Object.entries(stats).map(([id, s]) => ({
                     id, ...s, avg: (s.sum / s.count).toFixed(1)
-                })).sort((a, b) => b.avg - a.avg);
-            }, [allRatings]);
+        })).filter(item => !isNaN(parseFloat(item.avg))).sort((a, b) => b.avg - a.avg);            }, [allRatings]);
 
             if (loading) return React.createElement('div', { className: 'flex items-center justify-center min-h-screen text-blue-500 font-bold text-xl' }, 'Gathering the ingredients...');
             if (!user) return React.createElement(Login);
