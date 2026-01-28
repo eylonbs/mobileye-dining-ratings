@@ -76,7 +76,7 @@
                 return unsub;
             }, [user]);
 
-            if (loading) return React.createElement('div', { className: 'flex items-center justify-center min-h-screen text-blue-500 font-bold text-xl' }, 'Getting the table ready...');
+            if (loading) return React.createElement('div', { className: 'flex items-center justify-center min-h-screen text-blue-500 font-bold text-xl' }, 'Gathering the ingredients...');
             if (!user) return React.createElement(Login);
 
             return React.createElement('div', { className: 'max-w-4xl mx-auto p-4 md:p-8' }, [
@@ -111,7 +111,7 @@
                 e.preventDefault();
                 setError('');
                 if (!email.toLowerCase().endsWith('@mobileye.com')) {
-                    setError('Oops! This is for @mobileye.com only.');
+                    setError('Oops! Use your @mobileye.com email.');
                     return;
                 }
                 try {
@@ -122,13 +122,13 @@
 
             return React.createElement('div', { className: 'min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-blue-50 to-indigo-100' },
                 React.createElement('div', { className: 'glass-card p-8 w-full max-w-md text-center' }, [
-                    React.createElement('div', { className: 'text-5xl mb-6' }, '🍗'),
+                    React.createElement('div', { className: 'text-5xl mb-6' }, '🍔'),
                     React.createElement('h2', { className: 'text-3xl font-black text-gray-800 mb-2' }, isRegister ? 'Join the Foodies' : 'Welcome Back!'),
-                    React.createElement('p', { className: 'text-gray-500 mb-8 font-medium' }, 'Rate your meals & help us improve!'),
+                    React.createElement('p', { className: 'text-gray-500 mb-8 font-medium' }, 'Rate your Mobileye meals & help us improve!'),
                     error && React.createElement('p', { className: 'bg-red-50 text-red-500 p-3 rounded-xl mb-6 text-sm font-bold' }, error),
                     React.createElement('form', { onSubmit: handleSubmit, className: 'space-y-4' }, [
                         React.createElement('input', { type: 'email', placeholder: 'name@mobileye.com', value: email, onChange: e => setEmail(e.target.value), className: 'input-field', required: true }),
-                        React.createElement('input', { type: 'password', placeholder: 'Password', value: password, onChange: e => setPassword(e.target.value), className: 'input-field', required: true }),
+                        React.createElement('input', { type: 'password', placeholder: 'Secret Password', value: password, onChange: e => setPassword(e.target.value), className: 'input-field', required: true }),
                         React.createElement('button', { type: 'submit', className: 'btn-primary w-full py-4 text-lg' }, isRegister ? 'Let\'s Go! 🚀' : 'Sign In 🔑')
                     ]),
                     React.createElement('button', { onClick: () => setIsRegister(!isRegister), className: 'mt-8 text-blue-500 font-bold hover:underline text-sm' },
@@ -139,7 +139,7 @@
 
         function AdminPanel({ todayStr }) {
             const [form, setForm] = useState({
-                mains: ['', '', '', ''],
+                main: ['', '', '', ''],
                 soups: ['', ''],
                 desserts: ['', '', '']
             });
@@ -149,7 +149,7 @@
                     if (doc.exists) {
                         const data = doc.data();
                         setForm({
-                            mains: data.mains || ['', '', '', ''],
+                            main: data.main || ['', '', '', ''],
                             soups: data.soups || ['', ''],
                             desserts: data.desserts || ['', '', '']
                         });
@@ -183,8 +183,8 @@
                     'Setup Today\'s Menu'
                 ]),
                 React.createElement('div', { className: 'grid grid-cols-1 md:grid-cols-3 gap-8 mb-8' }, [
-                    InputGroup('Main Courses', 'mains', 4, '🍗'),
-                    InputGroup('Today\'s Soups', 'soups', 2, '🥣'),
+                    InputGroup('Main Dishes', 'main', 4, '🍖'),
+                    InputGroup('Soups', 'soups', 2, '🥣'),
                     InputGroup('Desserts', 'desserts', 3, '🍰')
                 ]),
                 React.createElement('button', { onClick: save, className: 'btn-primary px-8 py-3' }, 'Update Menu ✨')
@@ -194,14 +194,14 @@
         function RatingSection({ menu, todayStr }) {
             if (!menu) return React.createElement('div', { className: 'glass-card p-12 text-center' }, [
                 React.createElement('div', { className: 'text-6xl mb-6' }, '👨‍🍳'),
-                React.createElement('h2', { className: 'text-2xl font-black text-gray-800' }, 'Chef is cooking...'),
+                React.createElement('h2', { className: 'text-2xl font-black text-gray-800' }, 'Chef is preparing the menu...'),
                 React.createElement('p', { className: 'text-gray-500 font-medium' }, 'Check back in a few minutes!')
             ]);
 
             return React.createElement('div', { className: 'space-y-12' }, [
-                React.createElement(RatingGroup, { title: 'Main Courses & Dishes', items: menu.mains, type: 'mains', todayStr, badgeClass: 'main-badge', icon: '🍗', headerClass: 'header-main' }),
-                React.createElement(RatingGroup, { title: 'Select Your Soup', items: menu.soups, type: 'soups', todayStr, badgeClass: 'soup-badge', icon: '🥣', headerClass: 'header-soup' }),
-                React.createElement(RatingGroup, { title: 'Today\'s Desserts', items: menu.desserts, type: 'desserts', todayStr, badgeClass: 'dessert-badge', icon: '🍰', headerClass: 'header-dessert' })
+                React.createElement(RatingGroup, { title: 'Main Courses & Dishes', items: menu.main, type: 'main', todayStr, badgeClass: 'main-badge', icon: '🍖', headerClass: 'header-main' }),
+                React.createElement(RatingGroup, { title: 'Today\'s Soups', items: menu.soups, type: 'soups', todayStr, badgeClass: 'soup-badge', icon: '🥣', headerClass: 'header-soup' }),
+                React.createElement(RatingGroup, { title: 'Sweet Desserts', items: menu.desserts, type: 'desserts', todayStr, badgeClass: 'dessert-badge', icon: '🍰', headerClass: 'header-dessert' })
             ]);
         }
 
@@ -263,7 +263,7 @@
                 return '😶';
             };
 
-            const cleanCategory = category === 'mains' ? 'Main' : category === 'soups' ? 'Soup' : 'Dessert';
+            const cleanCategory = category === 'main' ? 'Main' : category === 'soups' ? 'Soup' : 'Dessert';
 
             return React.createElement('div', { className: `glass-card p-6 flex flex-col h-full transition-all ${hasRated ? 'border-green-200 bg-green-50/30' : 'hover:border-blue-300'}` }, [
                 React.createElement('div', { className: 'flex justify-between items-start mb-4' }, [
