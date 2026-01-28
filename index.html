@@ -25,8 +25,6 @@
             transition: all 0.2s ease-in-out;
         }
         .card:hover { border-color: #333; }
-        .rating-star { cursor: pointer; transition: transform 0.1s; }
-        .rating-star:active { transform: scale(0.9); }
         .glass-header {
             background: rgba(0, 0, 0, 0.8);
             backdrop-filter: blur(12px);
@@ -35,35 +33,17 @@
             top: 0;
             z-index: 50;
         }
-        .strike-green { color: #00ff88; }
-        .strike-red { color: #ff3333; }
-        .strike-yellow { color: #ffcc00; }
         input, textarea {
             background: #111 !important;
             border: 1px solid #222 !important;
             color: white !important;
-        }
-        input:focus, textarea:focus {
-            border-color: #444 !important;
-            outline: none;
         }
         .btn-primary {
             background: #ffffff;
             color: #000000;
             font-weight: 600;
             border-radius: 8px;
-            transition: opacity 0.2s;
         }
-        .btn-primary:hover { opacity: 0.9; }
-        .btn-secondary {
-            background: #111;
-            border: 1px solid #222;
-            color: white;
-            border-radius: 8px;
-        }
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: #000; }
-        ::-webkit-scrollbar-thumb { background: #222; border-radius: 10px; }
     </style>
 </head>
 <body>
@@ -71,7 +51,7 @@
 
     <script>
         const firebaseConfig = {
-            apiKey: "AIzaSyBKiGApRiBxU2wdiY7RIWcDqJxOoDpZHORA",
+            apiKey: "AIzaSyBKiGApRlBxU2wd1Y7RIWcDqJxoOpZHORA",
             authDomain: "mobileye-dining-ratings.firebaseapp.com",
             projectId: "mobileye-dining-ratings",
             storageBucket: "mobileye-dining-ratings.firebasestorage.app",
@@ -113,6 +93,7 @@
                 const today = new Date().toLocaleDateString('en-CA');
                 db.collection('menus').doc(today).onSnapshot(doc => {
                     if (doc.exists) setMenu(doc.data());
+                    else setMenu(null);
                 });
             }, []);
 
@@ -124,33 +105,22 @@
                 <div className="min-h-screen bg-black">
                     <header className="glass-header px-6 py-4">
                         <div className="max-w-xl mx-auto flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                                <span className="text-xl font-bold tracking-tight">Mobileye Dining</span>
-                                <span className="text-[10px] bg-[#111] border border-[#222] px-1.5 py-0.5 rounded text-slate-400 font-mono">PROD</span>
-                            </div>
+                            <h1 className="text-xl font-bold tracking-tight">Mobileye Dining</h1>
                             <div className="flex items-center gap-4">
                                 {isAdmin && (
                                     <button 
                                         onClick={() => setView(view === 'admin' ? 'employee' : 'admin')}
-                                        className="text-xs font-medium text-slate-400 hover:text-white"
+                                        className="text-xs font-medium text-slate-400"
                                     >
-                                        {view === 'admin' ? 'Switch to View' : 'Manager Panel'}
+                                        {view === 'admin' ? 'View Menu' : 'Manager Panel'}
                                     </button>
                                 )}
-                                <button onClick={() => auth.signOut()} className="text-xs font-medium text-slate-500 hover:text-white">Sign Out</button>
+                                <button onClick={() => auth.signOut()} className="text-xs text-slate-500">Sign Out</button>
                             </div>
                         </div>
                     </header>
 
                     <div className="px-4 py-8 max-w-xl mx-auto">
-                        <div className="mb-8">
-                            <p className="text-[11px] font-medium text-slate-500 uppercase tracking-[0.2em] mb-1">Status Update</p>
-                            <div className="flex items-center gap-2">
-                                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-                                <h1 className="text-sm font-medium text-slate-300">Live Menu Monitor • {new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })} Jerusalem</h1>
-                            </div>
-                        </div>
-
                         {view === 'admin' ? <AdminPanel menu={menu} /> : <EmployeePanel menu={menu} user={user} />}
                     </div>
                 </div>
@@ -159,18 +129,14 @@
 
         function Login() {
             return (
-                <div className="flex h-screen flex-col items-center justify-center p-6 bg-black">
+                <div className="flex h-screen flex-col items-center justify-center bg-black">
                     <div className="w-full max-w-sm space-y-8 text-center">
-                        <div>
-                            <h1 className="text-4xl font-bold tracking-tighter mb-2">Mobileye Dining</h1>
-                            <p className="text-slate-500 text-sm">Sign in to rate today's dishes</p>
-                        </div>
+                        <h1 className="text-4xl font-bold tracking-tighter">Mobileye Dining</h1>
                         <button 
                             onClick={() => auth.signInWithPopup(provider)}
-                            className="w-full btn-primary py-3.5 flex items-center justify-center gap-3"
+                            className="w-full btn-primary py-3.5"
                         >
-                            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="18" />
-                            Continue with Mobileye
+                            Sign in with Mobileye
                         </button>
                     </div>
                 </div>
@@ -178,43 +144,31 @@
         }
 
         function EmployeePanel({ menu, user }) {
-            if (!menu) return (
-                <div className="card p-12 text-center border-dashed">
-                    <p className="text-slate-500 text-sm">Waiting for dining manager to upload menu...</p>
-                </div>
-            );
+            if (!menu) return <div className="card p-12 text-center text-slate-500">Waiting for today's menu...</div>;
 
             const dishes = [
-                { id: 'chef', category: 'Chef Dish', icon: '🧑‍🍳', name: menu.chefDish },
-                { id: 'main1', category: 'Main Course 1', icon: '🍛', name: menu.main1 },
-                { id: 'main2', category: 'Main Course 2', icon: '🍛', name: menu.main2 },
-                { id: 'main3', category: 'Main Course 3', icon: '🍛', name: menu.main3 },
-                { id: 'veggie', category: 'Vegetarian', icon: '🥗', name: menu.vegetarian },
-                { id: 'soup', category: 'Soup', icon: '🍲', name: menu.soup },
-                { id: 'dessert1', category: 'Dessert 1', icon: '🍰', name: menu.dessert1 },
-                { id: 'dessert2', category: 'Dessert 2', icon: '🍰', name: menu.dessert2 }
+                { id: 'chef', category: 'Chef Dish', name: menu.chefDish },
+                { id: 'main1', category: 'Main Course 1', name: menu.main1 },
+                { id: 'main2', category: 'Main Course 2', name: menu.main2 },
+                { id: 'main3', category: 'Main Course 3', name: menu.main3 },
+                { id: 'veggie', category: 'Vegetarian', name: menu.vegetarian },
+                { id: 'soup', category: 'Soup', name: menu.soup },
+                { id: 'dessert1', category: 'Dessert 1', name: menu.dessert1 },
+                { id: 'dessert2', category: 'Dessert 2', name: menu.dessert2 }
             ].filter(d => d.name);
 
             return (
                 <div className="space-y-4">
                     <div className="card p-6 bg-gradient-to-br from-[#0a0a0a] to-[#111]">
-                        <p className="text-[10px] font-bold text-slate-600 uppercase tracking-widest mb-4">Sentiment Overview</p>
-                        <div className="flex items-end gap-1 mb-1">
-                            <span className="text-4xl font-bold tracking-tighter">Live Feedback</span>
-                        </div>
-                        <p className="text-slate-500 text-xs">Based on current employee ratings for {new Date().toLocaleDateString('en-GB')}</p>
+                        <span className="text-4xl font-bold tracking-tighter">Live Feedback</span>
                     </div>
-
-                    <div className="grid gap-4">
-                        {dishes.map(dish => <DishCard key={dish.id} dish={dish} user={user} />)}
-                    </div>
+                    {dishes.map(dish => <DishCard key={dish.id} dish={dish} user={user} />)}
                 </div>
             );
         }
 
         function DishCard({ dish, user }) {
             const [rating, setRating] = useState(0);
-            const [comment, setComment] = useState('');
             const [avgRating, setAvgRating] = useState(0);
             const [votes, setVotes] = useState(0);
 
@@ -223,10 +177,7 @@
 
             useEffect(() => {
                 db.collection('ratings').doc(ratingId).get().then(doc => {
-                    if (doc.exists) {
-                        setRating(doc.data().score);
-                        setComment(doc.data().comment || '');
-                    }
+                    if (doc.exists) setRating(doc.data().score);
                 });
 
                 db.collection('ratings')
@@ -247,52 +198,32 @@
                     dishId: dish.id,
                     userId: user.uid,
                     score,
-                    comment,
                     timestamp: firebase.firestore.FieldValue.serverTimestamp()
                 });
-            };
-
-            const statusColor = () => {
-                if (avgRating >= 4.2) return 'bg-[#00ff88]';
-                if (avgRating >= 3.5) return 'bg-[#ffcc00]';
-                return avgRating > 0 ? 'bg-[#ff3333]' : 'bg-[#333]';
             };
 
             return (
                 <div className="card p-5">
                     <div className="flex justify-between items-start mb-6">
-                        <div className="space-y-1">
-                            <div className="flex items-center gap-2">
-                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{dish.category}</span>
-                                <div className={`w-1.5 h-1.5 rounded-full ${statusColor()}`}></div>
-                            </div>
+                        <div>
+                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{dish.category}</span>
                             <h3 className="text-lg font-semibold tracking-tight">{dish.name}</h3>
                         </div>
                         <div className="text-right">
                             <div className="text-2xl font-bold tracking-tighter">{avgRating > 0 ? avgRating : '--'}</div>
-                            <p className="text-[9px] text-slate-500 uppercase font-bold tracking-tighter">{votes} SAMPLES</p>
+                            <p className="text-[9px] text-slate-500 font-bold uppercase tracking-tighter">{votes} SAMPLES</p>
                         </div>
                     </div>
-                    
-                    <div className="flex items-center justify-between gap-4">
-                        <div className="flex gap-2">
-                            {[1, 2, 3, 4, 5].map(s => (
-                                <button 
-                                    key={s} 
-                                    onClick={() => save(s)}
-                                    className={`w-8 h-8 rounded-md flex items-center justify-center text-sm font-bold transition-all ${s <= rating ? 'bg-white text-black' : 'bg-[#111] text-slate-600 border border-[#222]'}`}
-                                >
-                                    {s}
-                                </button>
-                            ))}
-                        </div>
-                        <input 
-                            placeholder="Add brief note..."
-                            className="flex-1 text-[11px] p-2 rounded-md"
-                            value={comment}
-                            onChange={(e) => setComment(e.target.value)}
-                            onBlur={() => save(rating)}
-                        />
+                    <div className="flex gap-2">
+                        {[1, 2, 3, 4, 5].map(s => (
+                            <button 
+                                key={s} 
+                                onClick={() => save(s)}
+                                className={`w-8 h-8 rounded-md text-sm font-bold transition-all ${s <= rating ? 'bg-white text-black' : 'bg-[#111] text-slate-600 border border-[#222]'}`}
+                            >
+                                {s}
+                            </button>
+                        ))}
                     </div>
                 </div>
             );
@@ -313,33 +244,23 @@
             const save = async () => {
                 const today = new Date().toLocaleDateString('en-CA');
                 await db.collection('menus').doc(today).set(formData);
-                alert('Success: Menu Published');
+                alert('Published');
             };
 
             return (
-                <div className="space-y-6">
-                    <div className="card p-6">
-                        <h2 className="text-sm font-bold uppercase tracking-widest mb-6">Data Input Console</h2>
-                        <div className="space-y-4">
-                            {Object.keys(formData).map(key => (
-                                <div key={key}>
-                                    <label className="text-[10px] font-bold text-slate-500 uppercase mb-1 block">{key}</label>
-                                    <input 
-                                        className="w-full text-xs p-3 rounded-lg"
-                                        value={formData[key]}
-                                        onChange={(e) => setFormData({...formData, [key]: e.target.value})}
-                                        placeholder="No data..."
-                                    />
-                                </div>
-                            ))}
+                <div className="card p-6 space-y-4">
+                    <h2 className="text-sm font-bold uppercase tracking-widest mb-4">Menu Console</h2>
+                    {Object.keys(formData).map(key => (
+                        <div key={key}>
+                            <label className="text-[10px] font-bold text-slate-500 uppercase block mb-1">{key}</label>
+                            <input 
+                                className="w-full text-xs p-3 rounded-lg"
+                                value={formData[key]}
+                                onChange={(e) => setFormData({...formData, [key]: e.target.value})}
+                            />
                         </div>
-                        <button 
-                            onClick={save}
-                            className="w-full btn-primary py-4 mt-8"
-                        >
-                            Update Production Menu
-                        </button>
-                    </div>
+                    ))}
+                    <button onClick={save} className="w-full btn-primary py-4 mt-4">Update Menu</button>
                 </div>
             );
         }
