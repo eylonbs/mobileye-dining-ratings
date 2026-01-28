@@ -26,11 +26,10 @@
         .main-badge { background: #dcfce7; color: #166534; }
         .soup-badge { background: #fef9c3; color: #854d0e; }
         .dessert-badge { background: #fae8ff; color: #86198f; }
-        .section-header { position: relative; padding-bottom: 0.5rem; margin-bottom: 1.5rem; }
-        .section-header::after { content: ''; position: absolute; left: 0; bottom: 0; width: 50px; height: 4px; border-radius: 2px; }
-        .header-main::after { background: #22c55e; }
-        .header-soup::after { background: #eab308; }
-        .header-dessert::after { background: #d946ef; }
+        .leaderboard-card { border: 2px solid transparent; background-clip: padding-box; }
+        .leaderboard-gold { border-color: #fbbf24; background-color: #fffbeb; }
+        .leaderboard-red { border-color: #ef4444; background-color: #fef2f2; }
+        .animate-pulse-slow { animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
     </style>
 </head>
 <body>
@@ -47,13 +46,14 @@
         firebase.initializeApp(firebaseConfig);
         const auth = firebase.auth();
         const db = firebase.firestore();
-        const { useState, useEffect } = React;
+        const { useState, useEffect, useMemo } = React;
 
         function App() {
             const [user, setUser] = useState(null);
             const [loading, setLoading] = useState(true);
             const [isAdmin, setIsAdmin] = useState(false);
             const [menu, setMenu] = useState(null);
+            const [allRatings, setAllRatings] = useState([]);
             const [todayStr] = useState(new Date().toISOString().split('T')[0]);
 
             useEffect(() => {
@@ -69,12 +69,26 @@
 
             useEffect(() => {
                 if (!user) return;
-                const unsub = db.collection('menus').doc(todayStr).onSnapshot(doc => {
-                    if (doc.exists) setMenu(doc.data());
-                    else setMenu(null);
+                const menuUnsub = db.collection('menus').doc(todayStr).onSnapshot(doc => {
+                    setMenu(doc.exists ? doc.data() : null);
                 });
-                return unsub;
+                const ratingsUnsub = db.collection('ratings').where('todayStr', '==', todayStr).onSnapshot(snap => {
+                    setAllRatings(snap.docs.map(d => d.data()));
+                });
+                return () => { menuUnsub(); ratingsUnsub(); };
             }, [user]);
+
+            const dishStats = useMemo(() => {
+                const stats = {};
+                allRatings.forEach(r => {
+                    if (!stats[r.dishId]) stats[r.dishId] = { sum: 0, count: 0, dishName: r.dishName, category: r.category };
+                    stats[r.dishId].sum += r.rating;
+                    stats[r.dishId].count += 1;
+                });
+                return Object.entries(stats).map(([id, s]) => ({
+                    id, ...s, avg: (s.sum / s.count).toFixed(1)
+                })).sort((a, b) => b.avg - a.avg);
+            }, [allRatings]);
 
             if (loading) return React.createElement('div', { className: 'flex items-center justify-center min-h-screen text-blue-500 font-bold text-xl' }, 'Gathering the ingredients...');
             if (!user) return React.createElement(Login);
@@ -83,21 +97,36 @@
                 React.createElement('header', { className: 'flex flex-col md:flex-row justify-between items-center mb-12 gap-4', key: 'header' }, [
                     React.createElement('div', { className: 'text-center md:text-left' }, [
                         React.createElement('h1', { className: 'text-4xl md:text-5xl font-black text-blue-600 tracking-tight' }, 'Yum-O-Meter'),
-                        React.createElement('p', { className: 'text-blue-400 font-bold flex items-center justify-center md:justify-start gap-2' }, [
-                            React.createElement('span', { className: 'text-xl' }, '🚗'),
-                            'MOBILEYE JERUSALEM'
-                        ])
+                        React.createElement('p', { className: 'text-blue-400 font-bold flex items-center justify-center md:justify-start gap-2' }, '🚗 MOBILEYE JERUSALEM')
                     ]),
                     React.createElement('div', { className: 'glass-card p-4 flex items-center gap-4' }, [
-                        React.createElement('div', { className: 'text-right hidden sm:block' }, [
+                        React.createElement('div', { className: 'text-right' }, [
                             React.createElement('p', { className: 'text-sm font-bold text-gray-600' }, user.email),
-                            React.createElement('button', { onClick: () => auth.signOut(), className: 'text-xs font-black text-red-500 hover:text-red-600 uppercase tracking-tighter' }, '👋 Sign Out')
-                        ]),
-                        React.createElement('div', { className: 'w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-xl' }, '😋')
+                            React.createElement('button', { onClick: () => auth.signOut(), className: 'text-xs font-black text-red-500 uppercase' }, '👋 Sign Out')
+                        ])
                     ])
                 ]),
                 isAdmin && React.createElement(AdminPanel, { todayStr, key: 'admin' }),
-                React.createElement(RatingSection, { menu, todayStr, key: 'rating' })
+                dishStats.length > 0 && React.createElement(TopSection, { stats: dishStats, key: 'top' }),
+                React.createElement(RatingSection, { menu, todayStr, allRatings, key: 'rating' })
+            ]);
+        }
+
+        function TopSection({ stats }) {
+            const best = stats[0];
+            const worst = stats[stats.length - 1];
+            
+            return React.createElement('div', { className: 'grid grid-cols-1 md:grid-cols-2 gap-6 mb-12' }, [
+                best && React.createElement('div', { className: 'glass-card p-6 leaderboard-gold animate-pulse-slow' }, [
+                    React.createElement('p', { className: 'text-xs font-black text-yellow-600 uppercase mb-2' }, '👑 The Employee Choice'),
+                    React.createElement('h3', { className: 'text-xl font-black text-gray-800' }, best.dishName),
+                    React.createElement('p', { className: 'text-3xl font-black text-yellow-500 mt-2' }, `⭐ ${best.avg}`)
+                ]),
+                worst && worst.avg <= 2.5 && React.createElement('div', { className: 'glass-card p-6 leaderboard-red' }, [
+                    React.createElement('p', { className: 'text-xs font-black text-red-600 uppercase mb-2' }, '🚫 DON\'T TRUST THE CHEF'),
+                    React.createElement('h3', { className: 'text-xl font-black text-gray-800' }, worst.dishName),
+                    React.createElement('p', { className: 'text-3xl font-black text-red-500 mt-2' }, `⭐ ${worst.avg}`)
+                ])
             ]);
         }
 
@@ -109,9 +138,8 @@
 
             const handleSubmit = async (e) => {
                 e.preventDefault();
-                setError('');
                 if (!email.toLowerCase().endsWith('@mobileye.com')) {
-                    setError('Oops! Use your @mobileye.com email.');
+                    setError('Use @mobileye.com email!');
                     return;
                 }
                 try {
@@ -120,53 +148,38 @@
                 } catch (err) { setError(err.message); }
             };
 
-            return React.createElement('div', { className: 'min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-blue-50 to-indigo-100' },
+            return React.createElement('div', { className: 'min-h-screen flex items-center justify-center p-4 bg-blue-50' },
                 React.createElement('div', { className: 'glass-card p-8 w-full max-w-md text-center' }, [
-                    React.createElement('div', { className: 'text-5xl mb-6' }, '🍔'),
-                    React.createElement('h2', { className: 'text-3xl font-black text-gray-800 mb-2' }, isRegister ? 'Join the Foodies' : 'Welcome Back!'),
-                    React.createElement('p', { className: 'text-gray-500 mb-8 font-medium' }, 'Rate your Mobileye meals & help us improve!'),
-                    error && React.createElement('p', { className: 'bg-red-50 text-red-500 p-3 rounded-xl mb-6 text-sm font-bold' }, error),
+                    React.createElement('div', { className: 'text-5xl mb-6' }, '🍗'),
+                    React.createElement('h2', { className: 'text-3xl font-black text-gray-800 mb-6' }, isRegister ? 'Join Us' : 'Welcome!'),
+                    error && React.createElement('p', { className: 'bg-red-50 text-red-500 p-3 rounded-xl mb-6 text-sm' }, error),
                     React.createElement('form', { onSubmit: handleSubmit, className: 'space-y-4' }, [
                         React.createElement('input', { type: 'email', placeholder: 'name@mobileye.com', value: email, onChange: e => setEmail(e.target.value), className: 'input-field', required: true }),
-                        React.createElement('input', { type: 'password', placeholder: 'Secret Password', value: password, onChange: e => setPassword(e.target.value), className: 'input-field', required: true }),
-                        React.createElement('button', { type: 'submit', className: 'btn-primary w-full py-4 text-lg' }, isRegister ? 'Let\'s Go! 🚀' : 'Sign In 🔑')
+                        React.createElement('input', { type: 'password', placeholder: 'Password', value: password, onChange: e => setPassword(e.target.value), className: 'input-field', required: true }),
+                        React.createElement('button', { type: 'submit', className: 'btn-primary w-full py-4' }, isRegister ? 'Register' : 'Sign In')
                     ]),
-                    React.createElement('button', { onClick: () => setIsRegister(!isRegister), className: 'mt-8 text-blue-500 font-bold hover:underline text-sm' },
-                        isRegister ? 'Already a member? Sign in' : 'New here? Create an account')
+                    React.createElement('button', { onClick: () => setIsRegister(!isRegister), className: 'mt-6 text-blue-500 font-bold' },
+                        isRegister ? 'Login instead' : 'Create account')
                 ])
             );
         }
 
         function AdminPanel({ todayStr }) {
-            const [form, setForm] = useState({
-                main: ['', '', '', ''],
-                soups: ['', ''],
-                desserts: ['', '', '']
-            });
+            const [form, setForm] = useState({ main: ['', '', '', ''], soups: ['', ''], desserts: ['', '', ''] });
 
             useEffect(() => {
                 db.collection('menus').doc(todayStr).get().then(doc => {
-                    if (doc.exists) {
-                        const data = doc.data();
-                        setForm({
-                            main: data.main || ['', '', '', ''],
-                            soups: data.soups || ['', ''],
-                            desserts: data.desserts || ['', '', '']
-                        });
-                    }
+                    if (doc.exists) setForm(doc.data());
                 });
             }, [todayStr]);
 
             const save = () => db.collection('menus').doc(todayStr).set(form);
 
-            const InputGroup = (label, type, size, emoji) => React.createElement('div', { className: 'space-y-3' }, [
-                React.createElement('h4', { className: 'font-black text-gray-700 flex items-center gap-2' }, [
-                    React.createElement('span', null, emoji),
-                    label
-                ]),
+            const InputGroup = (label, type, size) => React.createElement('div', { className: 'space-y-2' }, [
+                React.createElement('h4', { className: 'font-black text-gray-600' }, label),
                 ...Array(size).fill(0).map((_, i) => React.createElement('input', {
                     key: i,
-                    placeholder: `${label} option ${i + 1}`,
+                    placeholder: `Option ${i + 1}`,
                     value: form[type][i],
                     onChange: e => {
                         const newArr = [...form[type]];
@@ -177,118 +190,88 @@
                 }))
             ]);
 
-            return React.createElement('div', { className: 'glass-card p-6 md:p-8 mb-12 border-blue-200' }, [
-                React.createElement('h3', { className: 'text-2xl font-black text-blue-600 mb-8 flex items-center gap-3' }, [
-                    React.createElement('span', { className: 'bg-blue-600 text-white p-2 rounded-lg text-sm' }, 'ADM'),
-                    'Setup Today\'s Menu'
-                ]),
-                React.createElement('div', { className: 'grid grid-cols-1 md:grid-cols-3 gap-8 mb-8' }, [
-                    InputGroup('Main Dishes', 'main', 4, '🍖'),
-                    InputGroup('Soups', 'soups', 2, '🥣'),
-                    InputGroup('Desserts', 'desserts', 3, '🍰')
+            return React.createElement('div', { className: 'glass-card p-6 mb-12' }, [
+                React.createElement('h3', { className: 'text-xl font-black mb-6 text-blue-600' }, 'MANAGER DASHBOARD'),
+                React.createElement('div', { className: 'grid grid-cols-1 md:grid-cols-3 gap-6 mb-6' }, [
+                    InputGroup('Main Dishes', 'main', 4),
+                    InputGroup('Soups', 'soups', 2),
+                    InputGroup('Desserts', 'desserts', 3)
                 ]),
                 React.createElement('button', { onClick: save, className: 'btn-primary px-8 py-3' }, 'Update Menu ✨')
             ]);
         }
 
-        function RatingSection({ menu, todayStr }) {
-            if (!menu) return React.createElement('div', { className: 'glass-card p-12 text-center' }, [
-                React.createElement('div', { className: 'text-6xl mb-6' }, '👨‍🍳'),
-                React.createElement('h2', { className: 'text-2xl font-black text-gray-800' }, 'Chef is preparing the menu...'),
-                React.createElement('p', { className: 'text-gray-500 font-medium' }, 'Check back in a few minutes!')
-            ]);
+        function RatingSection({ menu, todayStr, allRatings }) {
+            if (!menu) return React.createElement('div', { className: 'glass-card p-12 text-center' }, 'Waiting for today\'s menu...');
 
             return React.createElement('div', { className: 'space-y-12' }, [
-                React.createElement(RatingGroup, { title: 'Main Courses & Dishes', items: menu.main, type: 'main', todayStr, badgeClass: 'main-badge', icon: '🍖', headerClass: 'header-main' }),
-                React.createElement(RatingGroup, { title: 'Today\'s Soups', items: menu.soups, type: 'soups', todayStr, badgeClass: 'soup-badge', icon: '🥣', headerClass: 'header-soup' }),
-                React.createElement(RatingGroup, { title: 'Sweet Desserts', items: menu.desserts, type: 'desserts', todayStr, badgeClass: 'dessert-badge', icon: '🍰', headerClass: 'header-dessert' })
+                React.createElement(RatingGroup, { title: 'Main Dishes', items: menu.main, type: 'main', todayStr, allRatings, badgeClass: 'main-badge', icon: '🍖' }),
+                React.createElement(RatingGroup, { title: 'Today\'s Soups', items: menu.soups, type: 'soups', todayStr, allRatings, badgeClass: 'soup-badge', icon: '🥣' }),
+                React.createElement(RatingGroup, { title: 'Sweet Desserts', items: menu.desserts, type: 'desserts', todayStr, allRatings, badgeClass: 'dessert-badge', icon: '🍰' })
             ]);
         }
 
-        function RatingGroup({ title, items, type, todayStr, badgeClass, icon, headerClass }) {
+        function RatingGroup({ title, items, type, todayStr, allRatings, badgeClass, icon }) {
             const filteredItems = (items || []).filter(i => i.trim() !== '');
             if (filteredItems.length === 0) return null;
 
+            const user = auth.currentUser;
+            const hasRatedAnyInCategory = allRatings.some(r => r.userId === user.uid && r.category === type);
+
             return React.createElement('section', null, [
-                React.createElement('div', { className: `flex items-center gap-3 section-header ${headerClass}` }, [
+                React.createElement('div', { className: 'flex items-center gap-3 mb-6' }, [
                     React.createElement('span', { className: 'text-3xl' }, icon),
                     React.createElement('h2', { className: 'text-2xl font-black text-gray-800' }, title)
                 ]),
                 React.createElement('div', { className: 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6' },
-                    filteredItems.map((item, idx) => React.createElement(DishCard, { key: idx, dish: item, category: type, todayStr, badgeClass }))
+                    filteredItems.map((item, idx) => React.createElement(DishCard, { 
+                        key: idx, 
+                        dishName: item, 
+                        category: type, 
+                        todayStr, 
+                        allRatings,
+                        badgeClass,
+                        isLocked: hasRatedAnyInCategory
+                    }))
                 )
             ]);
         }
 
-        function DishCard({ dish, category, todayStr, badgeClass }) {
-            const [rating, setRating] = useState(0);
+        function DishCard({ dishName, category, todayStr, allRatings, badgeClass, isLocked }) {
             const [comment, setComment] = useState('');
-            const [stats, setStats] = useState({ avg: 0, count: 0 });
-            const [hasRated, setHasRated] = useState(false);
             const user = auth.currentUser;
-
-            useEffect(() => {
-                const docId = `${todayStr}_${category}_${dish}`;
-                const unsub = db.collection('ratings').where('dishId', '==', docId).onSnapshot(snap => {
-                    const ratings = snap.docs.map(d => d.data().rating);
-                    const avg = ratings.length ? (ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(1) : 0;
-                    setStats({ avg, count: snap.size });
-                    
-                    const myRating = snap.docs.find(d => d.data().userId === user.uid);
-                    if (myRating) {
-                        setRating(myRating.data().rating);
-                        setComment(myRating.data().comment || '');
-                        setHasRated(true);
-                    }
-                });
-                return unsub;
-            }, [dish, todayStr]);
+            const dishId = `${todayStr}_${category}_${dishName}`;
+            
+            const myRating = allRatings.find(r => r.userId === user.uid && r.dishId === dishId);
+            const othersRatings = allRatings.filter(r => r.dishId === dishId);
+            const avg = othersRatings.length ? (othersRatings.reduce((a, b) => a + b.rating, 0) / othersRatings.length).toFixed(1) : 0;
 
             const submitRating = async (r) => {
-                const docId = `${user.uid}_${todayStr}_${category}_${dish}`;
+                if (isLocked && !myRating) return;
+                const docId = `${user.uid}_${dishId}`;
                 await db.collection('ratings').doc(docId).set({
-                    userId: user.uid,
-                    dishId: `${todayStr}_${category}_${dish}`,
-                    rating: r,
-                    comment,
-                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                    userId: user.uid, dishId, dishName, category, todayStr,
+                    rating: r, comment, timestamp: firebase.firestore.FieldValue.serverTimestamp()
                 });
             };
 
-            const getReaction = (val) => {
-                if (val >= 4.5) return '👑';
-                if (val >= 4) return '🔥';
-                if (val >= 3) return '👌';
-                if (val > 0) return '😴';
-                return '😶';
-            };
-
-            const cleanCategory = category === 'main' ? 'Main' : category === 'soups' ? 'Soup' : 'Dessert';
-
-            return React.createElement('div', { className: `glass-card p-6 flex flex-col h-full transition-all ${hasRated ? 'border-green-200 bg-green-50/30' : 'hover:border-blue-300'}` }, [
+            return React.createElement('div', { className: `glass-card p-6 flex flex-col h-full transition-all ${myRating ? 'border-green-300 bg-green-50' : isLocked ? 'opacity-50 grayscale cursor-not-allowed' : 'hover:border-blue-300'}` }, [
                 React.createElement('div', { className: 'flex justify-between items-start mb-4' }, [
-                    React.createElement('span', { className: `category-badge ${badgeClass}` }, cleanCategory),
-                    stats.count > 0 && React.createElement('div', { className: 'text-right' }, [
-                        React.createElement('div', { className: 'text-2xl font-black text-gray-800 flex items-center gap-1' }, [
-                            getReaction(stats.avg),
-                            stats.avg
-                        ]),
-                        React.createElement('div', { className: 'text-[10px] font-bold text-gray-400 uppercase' }, `${stats.count} votes`)
-                    ])
+                    React.createElement('span', { className: `category-badge ${badgeClass}` }, category),
+                    othersRatings.length > 0 && React.createElement('div', { className: 'text-right font-black text-gray-800' }, `⭐ ${avg}`)
                 ]),
-                React.createElement('h3', { className: 'text-xl font-black text-gray-800 mb-6 leading-tight flex-grow' }, dish),
+                React.createElement('h3', { className: 'text-xl font-black text-gray-800 mb-6 flex-grow' }, dishName),
                 React.createElement('div', { className: 'flex justify-center gap-2 mb-6' },
                     [1, 2, 3, 4, 5].map(star => React.createElement('span', {
                         key: star,
                         onClick: () => submitRating(star),
-                        className: `star-rating ${star <= rating ? 'star-active' : 'star-inactive'}`
-                    }, star <= rating ? '⭐' : '☆'))
+                        className: `star-rating ${star <= (myRating?.rating || 0) ? 'star-active' : 'star-inactive'}`
+                    }, star <= (myRating?.rating || 0) ? '⭐' : '☆'))
                 ),
-                React.createElement('input', {
-                    placeholder: 'Add a comment...',
-                    value: comment,
+                myRating && React.createElement('input', {
+                    placeholder: 'Edit comment...', value: comment || myRating.comment,
                     onChange: e => setComment(e.target.value),
-                    onBlur: () => rating > 0 && submitRating(rating),
+                    onBlur: () => submitRating(myRating.rating),
                     className: 'input-field text-sm font-medium'
                 })
             ]);
