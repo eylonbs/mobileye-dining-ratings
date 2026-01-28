@@ -11,16 +11,20 @@
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
     <style>
-        body { background-color: #000; color: #fff; font-family: sans-serif; }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #0a0a0a; color: #e5e5e5; margin: 0; }
+        .card { background: #1a1a1a; border: 1px solid #333; border-radius: 12px; }
+        .btn-primary { background: #3b82f6; color: white; border-radius: 8px; font-weight: 600; transition: all 0.2s; }
+        .btn-primary:hover { background: #2563eb; transform: translateY(-1px); }
+        .star-rating { cursor: pointer; color: #444; font-size: 1.5rem; transition: color 0.2s; }
+        .star-rating.active { color: #facc15; }
+        .input-field { background: #262626; border: 1px solid #404040; color: white; border-radius: 8px; padding: 10px; width: 100%; outline: none; }
+        .input-field:focus { border-color: #3b82f6; }
     </style>
 </head>
 <body>
     <div id="root"></div>
     <script>
-        // Emergency Debug
-        console.log('App starting...');
-        document.getElementById('root').innerHTML = '<div style="padding: 20px;">Initializing Mobileye Dining Ratings...</div>';
-
         const firebaseConfig = {
             apiKey: "AIzaSyBKiGApRlBxU2wd1Y7RIWcDqJxoOpZHORA",
             authDomain: "mobileye-dining-ratings.firebaseapp.com",
@@ -30,49 +34,191 @@
             appId: "1:428654044774:web:05fb0c7c043c52e8306fa7"
         };
 
-        try {
-            firebase.initializeApp(firebaseConfig);
-            const auth = firebase.auth();
-            const db = firebase.firestore();
-            const provider = new firebase.auth.GoogleAuthProvider();
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
 
-            const { useState, useEffect } = React;
+        const { useState, useEffect } = React;
 
-            function App() {
-                const [user, setUser] = useState(null);
-                const [loading, setLoading] = useState(true);
+        function App() {
+            const [user, setUser] = useState(null);
+            const [loading, setLoading] = useState(true);
+            const [isAdmin, setIsAdmin] = useState(false);
+            const [menu, setMenu] = useState(null);
+            const [todayStr] = useState(new Date().toISOString().split('T')[0]);
 
-                useEffect(() => {
-                    return auth.onAuthStateChanged(u => {
-                        setUser(u);
-                        setLoading(false);
-                    });
-                }, []);
+            useEffect(() => {
+                return auth.onAuthStateChanged(async (u) => {
+                    setUser(u);
+                    if (u) {
+                        const adminDoc = await db.collection('admins').doc(u.email).get();
+                        setIsAdmin(adminDoc.exists);
+                    }
+                    setLoading(false);
+                });
+            }, []);
 
-                if (loading) return React.createElement('div', {style: {padding: '20px'}}, 'Loading...');
+            useEffect(() => {
+                if (!user) return;
+                const unsub = db.collection('menus').doc(todayStr).onSnapshot(doc => {
+                    if (doc.exists) setMenu(doc.data());
+                    else setMenu(null);
+                });
+                return unsub;
+            }, [user]);
 
-                if (!user) {
-                    return React.createElement('div', {style: {padding: '20px', textAlign: 'center'}}, [
-                        React.createElement('h1', null, 'Mobileye Dining'),
-                        React.createElement('button', {
-                            onClick: () => auth.signInWithPopup(provider),
-                            style: {padding: '10px 20px', cursor: 'pointer'}
-                        }, 'Sign in with Google')
-                    ]);
-                }
+            if (loading) return React.createElement('div', { className: 'flex items-center justify-center min-h-screen text-gray-400' }, 'Loading Mobileye Dining...');
 
-                return React.createElement('div', {style: {padding: '20px'}}, [
-                    React.createElement('h1', null, 'Welcome, ' + user.displayName),
-                    React.createElement('button', {onClick: () => auth.signOut()}, 'Sign Out')
-                ]);
-            }
+            if (!user) return React.createElement(Login);
 
-            const root = ReactDOM.createRoot(document.getElementById('root'));
-            root.render(React.createElement(App));
-        } catch (e) {
-            console.error(e);
-            document.getElementById('root').innerHTML = '<div style="color: red; padding: 20px;">Error: ' + e.message + '</div>';
+            return React.createElement('div', { className: 'max-w-4xl mx-auto p-6' }, [
+                React.createElement('header', { className: 'flex justify-between items-center mb-10', key: 'header' }, [
+                    React.createElement('div', null, [
+                        React.createElement('h1', { className: 'text-3xl font-bold text-white tracking-tight' }, 'Dining Ratings'),
+                        React.createElement('p', { className: 'text-blue-500 text-sm font-medium uppercase' }, 'Mobileye Jerusalem')
+                    ]),
+                    React.createElement('div', { className: 'text-right' }, [
+                        React.createElement('p', { className: 'text-sm text-gray-400 mb-1' }, user.email),
+                        React.createElement('button', { onClick: () => auth.signOut(), className: 'text-xs font-bold text-red-500 hover:text-red-400 uppercase tracking-widest' }, 'Sign Out')
+                    ])
+                ]),
+                isAdmin && React.createElement(AdminPanel, { todayStr, key: 'admin' }),
+                React.createElement(RatingSection, { menu, todayStr, key: 'rating' })
+            ]);
         }
+
+        function Login() {
+            const [email, setEmail] = useState('');
+            const [password, setPassword] = useState('');
+            const [isRegister, setIsRegister] = useState(false);
+            const [error, setError] = useState('');
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                setError('');
+                if (!email.toLowerCase().endsWith('@mobileye.com')) {
+                    setError('Please use your @mobileye.com corporate email.');
+                    return;
+                }
+                try {
+                    if (isRegister) await auth.createUserWithEmailAndPassword(email, password);
+                    else await auth.signInWithEmailAndPassword(email, password);
+                } catch (err) { setError(err.message); }
+            };
+
+            return React.createElement('div', { className: 'flex items-center justify-center min-h-screen p-4' }, [
+                React.createElement('div', { className: 'card w-full max-w-md p-10 shadow-2xl' }, [
+                    React.createElement('div', { className: 'mb-8 text-center' }, [
+                        React.createElement('div', { className: 'w-16 h-1 w-16 bg-blue-600 mx-auto mb-4 rounded-full' }),
+                        React.createElement('h2', { className: 'text-3xl font-bold text-white' }, isRegister ? 'Create Account' : 'Welcome Back')
+                    ]),
+                    React.createElement('form', { onSubmit: handleSubmit, className: 'space-y-6' }, [
+                        React.createElement('div', null, [
+                            React.createElement('label', { className: 'block text-xs font-bold text-gray-500 uppercase mb-2' }, 'Mobileye Email'),
+                            React.createElement('input', { type: 'email', value: email, onChange: e => setEmail(e.target.value), className: 'input-field', placeholder: 'name@mobileye.com', required: true })
+                        ]),
+                        React.createElement('div', null, [
+                            React.createElement('label', { className: 'block text-xs font-bold text-gray-500 uppercase mb-2' }, 'Password'),
+                            React.createElement('input', { type: 'password', value: password, onChange: e => setPassword(e.target.value), className: 'input-field', required: true })
+                        ]),
+                        error && React.createElement('p', { className: 'text-red-500 text-sm bg-red-500/10 p-3 rounded-lg border border-red-500/20' }, error),
+                        React.createElement('button', { type: 'submit', className: 'btn-primary w-full py-3 mt-2 text-lg shadow-lg shadow-blue-900/20' }, isRegister ? 'Register' : 'Sign In')
+                    ]),
+                    React.createElement('button', { onClick: () => setIsRegister(!isRegister), className: 'w-full text-center mt-8 text-sm text-gray-500 hover:text-white transition-colors' }, isRegister ? 'Already have an account? Sign In' : 'Need an account? Create one')
+                ])
+            ]);
+        }
+
+        function AdminPanel({ todayStr }) {
+            const [items, setItems] = useState({ chef: '', main1: '', main2: '', main3: '', veg: '', soup: '', dessert1: '', dessert2: '' });
+
+            const handleSave = async () => {
+                await db.collection('menus').doc(todayStr).set(items);
+                alert('Today\'s menu has been updated!');
+            };
+
+            return React.createElement('div', { className: 'card p-8 mb-12 border-blue-500/30 bg-blue-500/5' }, [
+                React.createElement('div', { className: 'flex justify-between items-end mb-6' }, [
+                    React.createElement('div', null, [
+                        React.createElement('h3', { className: 'text-xl font-bold text-white' }, "Manager's Dashboard"),
+                        React.createElement('p', { className: 'text-blue-400 text-xs font-bold uppercase' }, "Upload Daily Dishes")
+                    ]),
+                    React.createElement('span', { className: 'text-sm text-gray-500 font-mono' }, todayStr)
+                ]),
+                React.createElement('div', { className: 'grid grid-cols-1 md:grid-cols-2 gap-6' }, Object.keys(items).map(k => 
+                    React.createElement('div', { key: k }, [
+                        React.createElement('label', { className: 'block text-[10px] font-black text-gray-600 uppercase mb-2 tracking-tighter' }, k.replace(/([A-Z])|([0-9])/g, ' $&')),
+                        React.createElement('input', { value: items[k], onChange: e => setItems({...items, [k]: e.target.value}), className: 'input-field text-sm', placeholder: 'Enter dish name...' })
+                    ])
+                )),
+                React.createElement('button', { onClick: handleSave, className: 'btn-primary px-10 py-3 mt-8 ml-auto block' }, 'Publish Menu')
+            ]);
+        }
+
+        function RatingSection({ menu, todayStr }) {
+            const categories = [
+                { id: 'chef', label: 'Chef Dish' }, { id: 'main1', label: 'Main Course 1' }, { id: 'main2', label: 'Main Course 2' },
+                { id: 'main3', label: 'Main Course 3' }, { id: 'veg', label: 'Vegetarian' }, { id: 'soup', label: 'Soup' },
+                { id: 'dessert1', label: 'Dessert 1' }, { id: 'dessert2', label: 'Dessert 2' }
+            ];
+
+            if (!menu) return React.createElement('div', { className: 'text-center py-32 bg-neutral-900/30 rounded-3xl border-2 border-dashed border-neutral-800' }, [
+                React.createElement('div', { className: 'text-4xl mb-4' }, '🍽️'),
+                React.createElement('p', { className: 'text-xl font-bold text-white' }, 'Menu Pending'),
+                React.createElement('p', { className: 'text-gray-500 max-w-xs mx-auto mt-2' }, 'The manager hasn\'t uploaded today\'s dishes yet. Check back during lunch!')
+            ]);
+
+            return React.createElement('div', null, [
+                React.createElement('div', { className: 'flex items-baseline gap-3 mb-8' }, [
+                    React.createElement('h2', { className: 'text-2xl font-bold text-white' }, "Today's Menu"),
+                    React.createElement('span', { className: 'text-gray-600 font-medium' }, todayStr)
+                ]),
+                React.createElement('div', { className: 'grid grid-cols-1 md:grid-cols-2 gap-6' }, categories.map(cat => 
+                    menu[cat.id] && React.createElement(DishCard, { key: cat.id, category: cat.label, name: menu[cat.id], dishId: cat.id, todayStr })
+                ))
+            ]);
+        }
+
+        function DishCard({ category, name, dishId, todayStr }) {
+            const [rating, setRating] = useState(0);
+            const [submitted, setSubmitted] = useState(false);
+
+            useEffect(() => {
+                const email = auth.currentUser.email.replace(/\./g, '_');
+                db.collection('ratings').doc(`${todayStr}_${dishId}_${email}`).get().then(doc => {
+                    if (doc.exists) { setRating(doc.data().value); setSubmitted(true); }
+                });
+            }, []);
+
+            const handleRate = async (val) => {
+                if (submitted) return;
+                setRating(val);
+                const email = auth.currentUser.email;
+                await db.collection('ratings').doc(`${todayStr}_${dishId}_${email.replace(/\./g, '_')}`).set({
+                    dishId, todayStr, user: email, value: val, timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                setSubmitted(true);
+            };
+
+            return React.createElement('div', { className: 'card p-6 flex flex-col justify-between hover:border-neutral-600 transition-colors duration-300' }, [
+                React.createElement('div', null, [
+                    React.createElement('span', { className: 'px-2 py-1 bg-blue-500/10 text-blue-500 text-[10px] font-black uppercase rounded tracking-widest' }, category),
+                    React.createElement('h4', { className: 'text-xl font-bold text-white mt-3' }, name)
+                ]),
+                React.createElement('div', { className: 'mt-10 flex items-center justify-between' }, [
+                    React.createElement('div', { className: 'flex gap-1' }, [1,2,3,4,5].map(v => 
+                        React.createElement('span', {
+                            key: v, onClick: () => handleRate(v),
+                            className: `star-rating ${rating >= v ? 'active' : ''} ${submitted ? 'opacity-50' : 'hover:scale-125'}`
+                        }, '★')
+                    )),
+                    submitted && React.createElement('span', { className: 'text-[10px] font-black text-green-500 uppercase tracking-widest' }, 'Verified')
+                ])
+            ]);
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(React.createElement(App));
     </script>
 </body>
 </html>
