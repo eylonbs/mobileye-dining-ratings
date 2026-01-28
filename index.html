@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mobileye Dining Ratings</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #f8fafc; }
+        .rating-star { cursor: pointer; transition: transform 0.2s; }
+        .rating-star:hover { transform: scale(1.2); }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyBKiGApRiBxU2wdiY7RIWcDqJxOoDpZHORA",
+            authDomain: "mobileye-dining-ratings.firebaseapp.com",
+            projectId: "mobileye-dining-ratings",
+            storageBucket: "mobileye-dining-ratings.firebasestorage.app",
+            messagingSenderId: "428654044774",
+            appId: "1:428654044774:web:05fb0c7c043c52e8306fa7"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+        const provider = new firebase.auth.GoogleAuthProvider();
+
+        const { useState, useEffect } = React;
+
+        function App() {
+            const [user, setUser] = useState(null);
+            const [isAdmin, setIsAdmin] = useState(false);
+            const [menu, setMenu] = useState(null);
+            const [loading, setLoading] = useState(true);
+            const [view, setView] = useState('employee'); // 'employee' or 'admin'
+
+            useEffect(() => {
+                auth.onAuthStateChanged(async (user) => {
+                    if (user) {
+                        if (user.email.endsWith('@mobileye.com')) {
+                            setUser(user);
+                            const adminDoc = await db.collection('admins').doc(user.email).get();
+                            setIsAdmin(adminDoc.exists);
+                        } else {
+                            alert('Only @mobileye.com accounts allowed');
+                            auth.signOut();
+                        }
+                    } else {
+                        setUser(null);
+                    }
+                    setLoading(false);
+                });
+
+                const today = new Date().toISOString().split('T')[0];
+                db.collection('menus').doc(today).onSnapshot(doc => {
+                    if (doc.exists) setMenu(doc.data());
+                });
+            }, []);
+
+            if (loading) return <div className="flex h-screen items-center justify-center">Loading...</div>;
+
+            if (!user) return <Login />;
+
+            return (
+                <div className="min-h-screen p-4 md:p-8">
+                    <header className="flex items-center justify-between mb-8 max-w-4xl mx-auto">
+                        <div>
+                            <h1 className="text-2xl font-bold">🍽️ Mobileye Dining</h1>
+                            <p className="text-slate-400 text-sm">Welcome, {user.displayName}</p>
+                        </div>
+                        <div className="flex gap-4">
+                            {isAdmin && (
+                                <button 
+                                    onClick={() => setView(view === 'admin' ? 'employee' : 'admin')}
+                                    className="px-4 py-2 bg-indigo-600 rounded-lg text-sm font-semibold"
+                                >
+                                    {view === 'admin' ? 'Rate Food' : 'Manage Menu'}
+                                </button>
+                            )}
+                            <button onClick={() => auth.signOut()} className="text-slate-400 hover:text-white text-sm">Sign Out</button>
+                        </div>
+                    </header>
+
+                    <main className="max-w-4xl mx-auto">
+                        {view === 'admin' ? <AdminPanel menu={menu} /> : <EmployeePanel menu={menu} user={user} />}
+                    </main>
+                </div>
+            );
+        }
+
+        function Login() {
+            return (
+                <div className="flex h-screen flex-col items-center justify-center p-4">
+                    <div className="bg-slate-800 p-8 rounded-2xl border border-slate-700 text-center max-w-md w-full shadow-2xl">
+                        <h1 className="text-4xl font-bold mb-2">🍽️ Dining Ratings</h1>
+                        <p className="text-slate-400 mb-8">Exclusive for Mobileye Employees</p>
+                        <button 
+                            onClick={() => auth.signInWithPopup(provider)}
+                            className="w-full bg-indigo-600 hover:bg-indigo-500 py-3 rounded-xl font-bold transition-all"
+                        >
+                            Sign in with Mobileye Google
+                        </button>
+                    </div>
+                </div>
+            );
+        }
+
+        function EmployeePanel({ menu, user }) {
+            if (!menu) return <div className="text-center py-20 bg-slate-800/50 rounded-2xl border border-slate-700">Manager hasn't uploaded today's menu yet 🧑‍🍳</div>;
+
+            const dishes = [
+                { id: 'chef', title: '🧑‍🍳 Chef Dish', name: menu.chefDish },
+                { id: 'main1', title: '🍛 Main Course 1', name: menu.main1 },
+                { id: 'main2', title: '🍛 Main Course 2', name: menu.main2 },
+                { id: 'main3', title: '🍛 Main Course 3', name: menu.main3 },
+                { id: 'veggie', title: '🥗 Vegetarian', name: menu.vegetarian },
+                { id: 'soup', title: '🍲 Soup', name: menu.soup },
+                { id: 'dessert1', title: '🍰 Dessert 1', name: menu.dessert1 },
+                { id: 'dessert2', title: '🍰 Dessert 2', name: menu.dessert2 }
+            ].filter(d => d.name);
+
+            return (
+                <div className="grid gap-6">
+                    <div className="bg-gradient-to-r from-indigo-900/40 to-slate-800 p-6 rounded-2xl border border-indigo-500/30">
+                        <h2 className="text-xl font-bold mb-1">Today's Vibe</h2>
+                        <p className="text-slate-300">Rate what you ate and help improve the dining room!</p>
+                    </div>
+                    {dishes.map(dish => <DishCard key={dish.id} dish={dish} user={user} />)}
+                </div>
+            );
+        }
+
+        function DishCard({ dish, user }) {
+            const [rating, setRating] = useState(0);
+            const [comment, setComment] = useState('');
+            const [avgRating, setAvgRating] = useState(0);
+            const [totalVotes, setTotalVotes] = useState(0);
+
+            const today = new Date().toISOString().split('T')[0];
+            const ratingId = `${today}_${dish.id}_${user.uid}`;
+
+            useEffect(() => {
+                db.collection('ratings').doc(ratingId).get().then(doc => {
+                    if (doc.exists) {
+                        setRating(doc.data().score);
+                        setComment(doc.data().comment || '');
+                    }
+                });
+
+                // Real-time averages (simple version for single page)
+                db.collection('ratings')
+                  .where('menuId', '==', today)
+                  .where('dishId', '==', dish.id)
+                  .onSnapshot(snap => {
+                      let sum = 0;
+                      snap.forEach(doc => sum += doc.data().score);
+                      setAvgRating(snap.size > 0 ? (sum / snap.size).toFixed(1) : 0);
+                      setTotalVotes(snap.size);
+                  });
+            }, []);
+
+            const saveRating = async (score) => {
+                setRating(score);
+                await db.collection('ratings').doc(ratingId).set({
+                    menuId: today,
+                    dishId: dish.id,
+                    userId: user.uid,
+                    score,
+                    comment,
+                    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                });
+            };
+
+            const getColor = () => {
+                if (avgRating >= 4) return 'text-green-400';
+                if (avgRating >= 3) return 'text-yellow-400';
+                return avgRating > 0 ? 'text-red-400' : 'text-slate-500';
+            };
+
+            return (
+                <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700 shadow-lg">
+                    <div className="flex justify-between items-start mb-4">
+                        <div>
+                            <p className="text-indigo-400 text-xs font-bold uppercase tracking-wider mb-1">{dish.title}</p>
+                            <h3 className="text-xl font-bold">{dish.name}</h3>
+                        </div>
+                        <div className="text-right">
+                            <p className={`text-2xl font-bold ${getColor()}`}>{avgRating} ★</p>
+                            <p className="text-slate-500 text-xs">{totalVotes} votes</p>
+                        </div>
+                    </div>
+                    
+                    <div className="flex gap-2 mb-4">
+                        {[1, 2, 3, 4, 5].map(star => (
+                            <span 
+                                key={star} 
+                                onClick={() => saveRating(star)}
+                                className={`text-3xl rating-star ${star <= rating ? 'grayscale-0' : 'grayscale opacity-30'}`}
+                            >
+                                ⭐
+                            </span>
+                        ))}
+                    </div>
+
+                    <textarea 
+                        placeholder="Any comments? (optional)"
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-sm focus:outline-none focus:border-indigo-500 transition-colors"
+                        value={comment}
+                        onChange={(e) => setComment(e.target.value)}
+                        onBlur={() => saveRating(rating)}
+                    />
+                </div>
+            );
+        }
+
+        function AdminPanel({ menu }) {
+            const [formData, setFormData] = useState({
+                chefDish: menu?.chefDish || '',
+                main1: menu?.main1 || '',
+                main2: menu?.main2 || '',
+                main3: menu?.main3 || '',
+                vegetarian: menu?.vegetarian || '',
+                soup: menu?.soup || '',
+                dessert1: menu?.dessert1 || '',
+                dessert2: menu?.dessert2 || ''
+            });
+
+            const saveMenu = async () => {
+                const today = new Date().toISOString().split('T')[0];
+                await db.collection('menus').doc(today).set(formData);
+                alert('Menu updated successfully!');
+            };
+
+            return (
+                <div className="bg-slate-800 p-8 rounded-2xl border border-slate-700">
+                    <h2 className="text-2xl font-bold mb-6">Manager Portal - Today's Menu</h2>
+                    <div className="grid gap-4 mb-8">
+                        {Object.keys(formData).map(key => (
+                            <div key={key}>
+                                <label className="block text-xs font-bold text-slate-400 uppercase mb-1">{key.replace(/([A-Z0-9])/g, ' $1')}</label>
+                                <input 
+                                    className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 focus:outline-none focus:border-indigo-500"
+                                    value={formData[key]}
+                                    onChange={(e) => setFormData({...formData, [key]: e.target.value})}
+                                    placeholder={`Enter ${key}...`}
+                                />
+                            </div>
+                        ))}
+                    </div>
+                    <button 
+                        onClick={saveMenu}
+                        className="w-full bg-green-600 hover:bg-green-500 py-3 rounded-xl font-bold transition-all shadow-lg"
+                    >
+                        Publish Menu
+                    </button>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
