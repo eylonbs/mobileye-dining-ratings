@@ -1,13 +1,11 @@
 import puppeteer from 'puppeteer';
 import admin from 'firebase-admin';
 
-// Initialize Firebase Admin
+// Parse service account JSON from environment variable
+const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+
 admin.initializeApp({
-  credential: admin.credential.cert({
-    projectId: process.env.FIREBASE_PROJECT_ID,
-    privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
-    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-  }),
+  credential: admin.credential.cert(serviceAccount),
 });
 
 const db = admin.firestore();
