@@ -126,7 +126,7 @@
                     React.createElement('p', { className: 'text-3xl font-black text-yellow-500 mt-2' }, `⭐ ${best.avg}`)
                 ]),
                 worst && worst.avg <= 2.5 && React.createElement('div', { className: 'glass-card p-6 leaderboard-red' }, [
-                    React.createElement('p', { className: 'text-xs font-black text-red-600 uppercase mb-2' }, '🚫 DON\'T TRUST THE CHEF'),
+                    React.createElement('p', { className: 'text-xs font-black text-red-600 uppercase mb-2' }, "🚫 DON'T TRUST THE CHEF"),
                     React.createElement('h3', { className: 'text-xl font-black text-gray-800' }, worst.dishName),
                     React.createElement('p', { className: 'text-3xl font-black text-red-500 mt-2' }, `⭐ ${worst.avg}`)
                 ])
@@ -205,11 +205,11 @@
         }
 
         function RatingSection({ menu, todayStr, allRatings }) {
-            if (!menu) return React.createElement('div', { className: 'glass-card p-12 text-center' }, 'Waiting for today\'s menu...');
+            if (!menu) return React.createElement('div', { className: 'glass-card p-12 text-center' }, "Waiting for today's menu...");
 
             return React.createElement('div', { className: 'space-y-12' }, [
                 React.createElement(RatingGroup, { title: 'Main Dishes', items: menu.main, type: 'main', todayStr, allRatings, badgeClass: 'main-badge', icon: '🍖' }),
-                React.createElement(RatingGroup, { title: 'Today\'s Soups', items: menu.soups, type: 'soups', todayStr, allRatings, badgeClass: 'soup-badge', icon: '🥣' }),
+                React.createElement(RatingGroup, { title: "Today's Soups", items: menu.soups, type: 'soups', todayStr, allRatings, badgeClass: 'soup-badge', icon: '🥣' }),
                 React.createElement(RatingGroup, { title: 'Sweet Desserts', items: menu.desserts, type: 'desserts', todayStr, allRatings, badgeClass: 'dessert-badge', icon: '🍰' })
             ]);
         }
