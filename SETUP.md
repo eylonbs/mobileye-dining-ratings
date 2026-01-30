@@ -167,3 +167,71 @@ service cloud.firestore {
 For issues or questions, create an issue in this GitHub repository.
 
 **Built with ❤️ for Mobileye employees**
+
+
+---
+
+## 🤖 Automated Menu Sync (NEW!)
+
+### Overview
+
+The app now features **automated daily menu synchronization** from the Mobilife terminal menu page directly into Firebase. This eliminates manual menu entry and ensures the app always has the latest menu data.
+
+### How It Works
+
+1. **GitHub Actions Workflow**: Runs daily at 6 AM Israel time (4 AM UTC)
+2. **Web Scraper**: Automatically extracts menu data from https://life.mobileye.com/page/terminal-menu
+3. **Firebase Upload**: Directly updates the `menus` collection with the latest data
+4. **Category Mapping**: Intelligently maps Hebrew categories to app sections:
+   - מרקים → `soups`
+   - עמדת דג יומי, עמדת צמחוני טבעוני, עמדת גריל, התבשיליה, עמדת ספיישל יומית → `main`
+   - קינוחים → `desserts`
+
+### Setup Instructions
+
+#### 1. Create Firebase Service Account
+
+1. Go to [Firebase Console](https://console.firebase.google.com/project/mobileye-dining-ratings/settings/serviceaccounts/adminsdk)
+2. Click **"Generate New Private Key"**
+3. Save the JSON file securely
+
+#### 2. Configure GitHub Secrets
+
+Add these secrets in your GitHub repository settings (Settings → Secrets and variables → Actions):
+
+- `FIREBASE_PROJECT_ID`: Your project ID (e.g., `mobileye-dining-ratings`)
+- `FIREBASE_CLIENT_EMAIL`: Service account email from JSON
+- `FIREBASE_PRIVATE_KEY`: Private key from JSON (entire key including `-----BEGIN PRIVATE KEY-----`)
+
+#### 3. Enable GitHub Actions
+
+1. Go to the **Actions** tab in your GitHub repository
+2. Enable workflows if not already enabled
+3. The workflow will run automatically daily at 6 AM Israel time
+
+#### 4. Manual Trigger (Optional)
+
+You can manually trigger the workflow:
+1. Go to **Actions** tab
+2. Select **"Daily Menu Update"** workflow
+3. Click **"Run workflow"**
+
+### Files Created
+
+- `.github/workflows/daily-menu-update.yml` - GitHub Actions workflow
+- `scripts/scrape-and-upload.js` - Main automation script
+- `menu-data-feb-2026.json` - Sample menu data (for reference)
+
+### Monitoring
+
+- Check the **Actions** tab in GitHub to see workflow runs
+- Each run logs detailed information about the scraping and upload process
+- Firebase Console shows the updated menu documents in real-time
+
+### Troubleshooting
+
+- **Workflow fails**: Check that all GitHub secrets are correctly configured
+- **No data uploaded**: Verify the Mobilife website structure hasn't changed
+- **Missing dishes**: Check the category mappings in `scrape-and-upload.js`
+
+---
