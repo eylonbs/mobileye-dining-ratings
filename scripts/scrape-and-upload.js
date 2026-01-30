@@ -1,5 +1,5 @@
-const puppeteer = require('puppeteer');
-const admin = require('firebase-admin');
+import puppeteer from 'puppeteer';
+import admin from 'firebase-admin';
 
 // Initialize Firebase Admin
 admin.initializeApp({
