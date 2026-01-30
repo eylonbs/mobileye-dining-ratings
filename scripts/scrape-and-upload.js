@@ -16,7 +16,7 @@ const db = admin.firestore();
 const CATEGORIES = {
   מרקים: 'soups',
   'עמדת דג יומי': 'main',
-  'עמדת צמחוני טבעוני': 'main',
+  'עמדת צימחוני טבעוני': 'main',
   'עמדת גריל': 'main',
   התבשיליה: 'main',
   'עמדת ספיישל יומית': 'main',
