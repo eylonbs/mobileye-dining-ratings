@@ -23,5 +23,5 @@ jobs:
       
       - name: Scrape and upload menu
         env:
-                  FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERV
+                  FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
       run: node scripts/scrape-and-upload.js
