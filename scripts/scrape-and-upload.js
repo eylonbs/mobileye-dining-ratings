@@ -1,19 +1,84 @@
 import puppeteer from 'puppeteer';
 import admin from 'firebase-admin';
+import fs from 'fs';
+import { parse } from 'csv-parse/sync';
 
+// --- 1. INITIALIZATION ---
 const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT.trim());
+
 if (!admin.apps.length) {
-  admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount),
+  });
 }
 const db = admin.firestore();
 
-const CATEGORIES_MAP = {
-  soups: ['מרק', 'מרקים'],
-  main: ['גריל', 'בשרי', 'דג', 'צמחוני', 'טבעוני', 'תבשיל', 'ספיישל', 'התבשיליה', 'עיקרית', 'פסטה', 'אסייתי'],
-  desserts: ['קינוח', 'מתוק', 'פירות']
+// --- 2. CONFIGURATION ---
+const CSV_FILE_PATH = './menu.csv';
+
+// Hebrew mapping used by BOTH the CSV and the Scraper
+const CATEGORY_GROUPS = {
+  'מרקים': 'soups',
+  'מרק': 'soups',
+  'התבשיליה': 'main',
+  'עמדת גריל': 'main',
+  'גריל': 'main',
+  'עמדת צימחוני טבעוני': 'main',
+  'צמחוני': 'main',
+  'טבעוני': 'main',
+  'עמדת דג יומית': 'main',
+  'דגים': 'main',
+  'עמדת ספיישל יומית': 'main',
+  'ספיישל': 'main',
+  'קינוחים': 'desserts',
+  'מתוקים': 'desserts'
 };
 
+// --- 3. HELPERS ---
+function addDays(startDateStr, daysToAdd) {
+  const [d, m, y] = startDateStr.split('.');
+  const date = new Date(`${y}-${m}-${d}`);
+  date.setDate(date.getDate() + daysToAdd);
+  return date.toISOString().split('T')[0];
+}
+
+// --- 4. OPTION A: EXCEL/CSV PROCESSING ---
+async function processCSV() {
+  console.log('✅ CSV file detected. Processing Excel data...');
+  const fileContent = fs.readFileSync(CSV_FILE_PATH, 'utf-8');
+  const rows = parse(fileContent, { skip_empty_lines: true });
+
+  const dateRange = rows[0][0]; // Cell A1
+  const startDate = dateRange.split('-')[0].trim();
+  
+  const menuData = {};
+  let lastAppCategory = null;
+
+  rows.forEach((row, rowIndex) => {
+    if (rowIndex < 1) return;
+    const rowLabel = row[0]?.trim();
+    if (rowLabel && CATEGORY_GROUPS[rowLabel]) {
+      lastAppCategory = CATEGORY_GROUPS[rowLabel];
+    }
+    if (!lastAppCategory) return;
+
+    for (let i = 1; i <= 5; i++) {
+      const targetDate = addDays(startDate, i - 1);
+      const dish = row[i]?.trim();
+      if (dish && dish !== "" && dish !== "-") {
+        if (!menuData[targetDate]) menuData[targetDate] = { soups: [], main: [], desserts: [] };
+        if (!menuData[targetDate][lastAppCategory].includes(dish)) {
+          menuData[targetDate][lastAppCategory].push(dish);
+        }
+      }
+    }
+  });
+  return menuData;
+}
+
+// --- 5. OPTION B: WEB SCRAPER (BACKUP LOGIC) ---
 async function scrapeMenu() {
+  console.log('🌐 No CSV found. Falling back to Puppeteer scraper...');
   const browser = await puppeteer.launch({
     headless: 'new',
     args: ['--no-sandbox', '--disable-setuid-sandbox'],
@@ -23,27 +88,17 @@ async function scrapeMenu() {
     const page = await browser.newPage();
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
     
-    console.log('Navigating to Mobilife...');
     await page.goto('https://life.mobileye.com/page/terminal-menu?SearchId=0', {
       waitUntil: 'networkidle2',
       timeout: 60000
     });
 
-    // FIX: Replaced page.waitForTimeout with a modern promise-based delay
-    await new Promise(resolve => setTimeout(resolve, 5000)); 
+    await new Promise(r => setTimeout(r, 5000));
 
-    // DEBUG: Let's see what the page actually says
-    const debugInfo = await page.evaluate(() => ({
-      title: document.title,
-      bodySnippet: document.body.innerText.substring(0, 500)
-    }));
-    console.log('Page Title:', debugInfo.title);
-    console.log('Page Content Snippet:', debugInfo.bodySnippet);
-
-    const menuData = await page.evaluate((CATEGORIES_MAP) => {
+    // RE-INSERTED LOGIC: Scans page text for dates and keywords
+    return await page.evaluate((CATEGORY_GROUPS) => {
       const data = {};
       const allElements = Array.from(document.querySelectorAll('div, td, tr, span, p, li'));
-      
       let currentDay = null;
       let currentCategory = 'main';
 
@@ -64,8 +119,8 @@ async function scrapeMenu() {
 
         if (currentDay) {
           let foundSection = null;
-          for (const [section, keywords] of Object.entries(CATEGORIES_MAP)) {
-            if (keywords.some(k => text.includes(k))) {
+          for (const [key, section] of Object.entries(CATEGORY_GROUPS)) {
+            if (text.includes(key)) {
               foundSection = section;
               break;
             }
@@ -74,48 +129,46 @@ async function scrapeMenu() {
           if (foundSection) {
             currentCategory = foundSection;
           } else if (text.length > 4 && !text.includes('Mobileye') && !text.includes('כל הזכויות')) {
-            const isDuplicate = data[currentDay][currentCategory].includes(text);
-            if (!isDuplicate) {
+            if (!data[currentDay][currentCategory].includes(text)) {
               data[currentDay][currentCategory].push(text);
             }
           }
         }
       });
       return data;
-    }, CATEGORIES_MAP);
-
-    return menuData;
+    }, CATEGORY_GROUPS);
   } finally {
     await browser.close();
   }
 }
 
+// --- 6. MAIN EXECUTION ---
 async function main() {
   try {
-    const data = await scrapeMenu();
-    const datesFound = Object.keys(data);
-    
-    if (datesFound.length === 0) {
-      console.log('No structured data found. Checking if site is empty or blocked...');
+    let menuData;
+    if (fs.existsSync(CSV_FILE_PATH)) {
+      menuData = await processCSV();
+    } else {
+      menuData = await scrapeMenu();
+    }
+
+    const dates = Object.keys(menuData);
+    if (dates.length === 0) {
+      console.log('⚠️ No menu data found. (Check if site is blocked or CSV is empty)');
       return;
     }
 
-    for (const date of datesFound) {
-      const doc = data[date];
-      const finalDoc = {
-        main: [...new Set(doc.main)].filter(d => d.length > 5).slice(0, 15),
-        soups: [...new Set(doc.soups)].filter(d => d.length > 5).slice(0, 5),
-        desserts: [...new Set(doc.desserts)].filter(d => d.length > 5).slice(0, 5)
-      };
-
-      if (finalDoc.main.length > 0) {
-        console.log(`Uploading ${date}: Found ${finalDoc.main.length} main dishes.`);
-        await db.collection('menus').doc(date).set(finalDoc);
+    for (const date of dates) {
+      const content = menuData[date];
+      // Only upload if there are actual dishes found
+      if (content.main.length > 0 || content.soups.length > 0) {
+        console.log(`🚀 Uploading ${date}: ${content.main.length} main dishes.`);
+        await db.collection('menus').doc(date).set(content);
       }
     }
-    console.log('Update process finished.');
-  } catch (e) {
-    console.error('Script Error:', e);
+    console.log('✨ Update completed!');
+  } catch (error) {
+    console.error('❌ Script failed:', error);
     process.exit(1);
   }
 }
