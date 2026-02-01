@@ -54,9 +54,9 @@ async function scrapeMenu() {
         const rows = table.querySelectorAll('tr');
         rows.forEach(row => {
           const text = row.innerText.trim();
-          if (!text) return;
+          if (!text || text.length < 2) return;
 
-          // Robust Date Match: Handles 1.2.2026, 01/02/26, etc.
+          // FIX: Flexible Date Match (Handles 1.2.2026, 01/02/26, 1/2/26, etc.)
           const dateMatch = text.match(/(\d{1,2})[\.\/](\d{1,2})[\.\/](\d{2,4})/);
           if (dateMatch) {
             const day = dateMatch[1].padStart(2, '0');
@@ -65,20 +65,20 @@ async function scrapeMenu() {
             if (year.length === 2) year = '20' + year;
             currentDay = `${year}-${month}-${day}`;
             if (!data[currentDay]) data[currentDay] = {};
-            return; 
+            return;
           }
 
-          // If we have a date, look for categories or dishes
+          // If we have a date, check for categories or dishes
           if (currentDay) {
-            // Check if this row is a category header (usually bold or has specific class)
-            // Or simply check if it's one of our known Hebrew categories
-            const isCategory = ['מרקים', 'גריל', 'בשרי', 'צמחוני', 'קינוחים', 'ספיישל', 'התבשיליה'].some(cat => text.includes(cat));
-            
-            if (isCategory) {
+            // Check if this row is a category
+            const categoriesInRow = ['מרקים', 'מרק', 'גריל', 'בשרי', 'צמחוני', 'קינוחים', 'ספיישל', 'התבשיליה', 'דגים'];
+            const foundCat = categoriesInRow.find(cat => text.includes(cat));
+
+            if (foundCat) {
               currentCategory = text;
               if (!data[currentDay][currentCategory]) data[currentDay][currentCategory] = [];
-            } else if (currentCategory && text.length > 2) {
-              // It's a dish!
+            } else if (currentCategory && text.length > 3) {
+              // It's a dish - push to the last category found
               data[currentDay][currentCategory].push(text);
             }
           }
@@ -87,6 +87,7 @@ async function scrapeMenu() {
       return data;
     });
 
+    // This will now show you EXACTLY what was found in the GitHub Logs
     console.log('Menu data extracted:', JSON.stringify(menuData, null, 2));
     return menuData;
   } finally {
