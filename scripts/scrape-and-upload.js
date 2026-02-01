@@ -47,45 +47,43 @@ async function scrapeMenu() {
     const menuData = await page.evaluate(() => {
       const data = {};
       const tables = document.querySelectorAll('table');
-      
+      let currentDay = null;
+      let currentCategory = null;
+
       tables.forEach(table => {
         const rows = table.querySelectorAll('tr');
-        let currentCategory = null;
-        let currentDay = null;
-        
         rows.forEach(row => {
-          const cells = row.querySelectorAll('td, th');
-          if (cells.length === 0) return;
-          
-          const firstCellText = cells[0].textContent.trim();
-          
-          // Check if this is a day header
-          const dayMatch = firstCellText.match(/(ראשון|שני|שלישי|רביעי|חמישי)/);
-          if (dayMatch && cells.length > 1) {
-            const dateText = cells[cells.length - 1].textContent.trim();
-            const dateMatch = dateText.match(/(\d{1,2})[\.\/](\d{1,2})[\.\/](\d{2,4})/);
-            if (dateMatch) {
-                const day = dateMatch[1].padStart(2, '0');
-                const month = dateMatch[2].padStart(2, '0');
-                let year = dateMatch[3];
-                if (year.length === 2) year = '20' + year; // Convert 26 to 2026
-                currentDay = `${year}-${month}-${day}`;
-            }
+          const text = row.innerText.trim();
+          if (!text) return;
+
+          // Robust Date Match: Handles 1.2.2026, 01/02/26, etc.
+          const dateMatch = text.match(/(\d{1,2})[\.\/](\d{1,2})[\.\/](\d{2,4})/);
+          if (dateMatch) {
+            const day = dateMatch[1].padStart(2, '0');
+            const month = dateMatch[2].padStart(2, '0');
+            let year = dateMatch[3];
+            if (year.length === 2) year = '20' + year;
+            currentDay = `${year}-${month}-${day}`;
+            if (!data[currentDay]) data[currentDay] = {};
+            return; 
           }
-          // Check if this is a category row
-          else if (cells.length === 1 || (cells.length === 2 && !cells[1].textContent.trim())) {
-            currentCategory = firstCellText;
-          }
-          // This is a dish row
-          else if (currentDay && currentCategory && cells.length >= 2) {
-            if (!data[currentDay][currentCategory]) {
-              data[currentDay][currentCategory] = [];
+
+          // If we have a date, look for categories or dishes
+          if (currentDay) {
+            // Check if this row is a category header (usually bold or has specific class)
+            // Or simply check if it's one of our known Hebrew categories
+            const isCategory = ['מרקים', 'גריל', 'בשרי', 'צמחוני', 'קינוחים', 'ספיישל', 'התבשיליה'].some(cat => text.includes(cat));
+            
+            if (isCategory) {
+              currentCategory = text;
+              if (!data[currentDay][currentCategory]) data[currentDay][currentCategory] = [];
+            } else if (currentCategory && text.length > 2) {
+              // It's a dish!
+              data[currentDay][currentCategory].push(text);
             }
-            data[currentDay][currentCategory].push(firstCellText);
           }
         });
       });
-      
       return data;
     });
 
