@@ -16,12 +16,11 @@ const CATEGORIES_MAP = {
 async function scrapeMenu() {
   const browser = await puppeteer.launch({
     headless: 'new',
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-web-security'],
+    args: ['--no-sandbox', '--disable-setuid-sandbox'],
   });
 
   try {
     const page = await browser.newPage();
-    // Use a real browser User-Agent to avoid being blocked
     await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
     
     console.log('Navigating to Mobilife...');
@@ -30,22 +29,28 @@ async function scrapeMenu() {
       timeout: 60000
     });
 
-    // Wait for ANY content to load
-    await page.waitForTimeout(5000); 
+    // FIX: Replaced page.waitForTimeout with a modern promise-based delay
+    await new Promise(resolve => setTimeout(resolve, 5000)); 
+
+    // DEBUG: Let's see what the page actually says
+    const debugInfo = await page.evaluate(() => ({
+      title: document.title,
+      bodySnippet: document.body.innerText.substring(0, 500)
+    }));
+    console.log('Page Title:', debugInfo.title);
+    console.log('Page Content Snippet:', debugInfo.bodySnippet);
 
     const menuData = await page.evaluate((CATEGORIES_MAP) => {
       const data = {};
-      // Grab every single text element on the page, regardless of table structure
-      const allElements = Array.from(document.querySelectorAll('div, td, tr, span, p, h1, h2, h3, h4'));
+      const allElements = Array.from(document.querySelectorAll('div, td, tr, span, p, li'));
       
       let currentDay = null;
-      let currentCategory = 'main'; // Default fallback
+      let currentCategory = 'main';
 
       allElements.forEach(el => {
         const text = el.innerText ? el.innerText.trim() : "";
-        if (!text || text.length < 2 || text.length > 100) return;
+        if (!text || text.length < 2 || text.length > 150) return;
 
-        // 1. Detect Date (e.g., 01/02/2026)
         const dateMatch = text.match(/(\d{1,2})[\.\/](\d{1,2})[\.\/](\d{2,4})/);
         if (dateMatch) {
           const day = dateMatch[1].padStart(2, '0');
@@ -58,7 +63,6 @@ async function scrapeMenu() {
         }
 
         if (currentDay) {
-          // 2. Detect Category change
           let foundSection = null;
           for (const [section, keywords] of Object.entries(CATEGORIES_MAP)) {
             if (keywords.some(k => text.includes(k))) {
@@ -69,9 +73,8 @@ async function scrapeMenu() {
 
           if (foundSection) {
             currentCategory = foundSection;
-          } else if (text.length > 4 && !text.includes('כל הזכויות')) {
-            // 3. It's a dish! (Avoid duplicate adding by checking if already in any category for this day)
-            const isDuplicate = Object.values(data[currentDay]).some(arr => arr.includes(text));
+          } else if (text.length > 4 && !text.includes('Mobileye') && !text.includes('כל הזכויות')) {
+            const isDuplicate = data[currentDay][currentCategory].includes(text);
             if (!isDuplicate) {
               data[currentDay][currentCategory].push(text);
             }
@@ -93,25 +96,27 @@ async function main() {
     const datesFound = Object.keys(data);
     
     if (datesFound.length === 0) {
-      console.error("CRITICAL: Still no data. Mobilife might be showing a 'No Menu' message or login screen.");
+      console.log('No structured data found. Checking if site is empty or blocked...');
       return;
     }
 
     for (const date of datesFound) {
       const doc = data[date];
-      // Final cleanup
       const finalDoc = {
-        main: [...new Set(doc.main)].slice(0, 15),
-        soups: [...new Set(doc.soups)].slice(0, 5),
-        desserts: [...new Set(doc.desserts)].slice(0, 5)
+        main: [...new Set(doc.main)].filter(d => d.length > 5).slice(0, 15),
+        soups: [...new Set(doc.soups)].filter(d => d.length > 5).slice(0, 5),
+        desserts: [...new Set(doc.desserts)].filter(d => d.length > 5).slice(0, 5)
       };
 
-      console.log(`Final data for ${date}:`, JSON.stringify(finalDoc));
-      await db.collection('menus').doc(date).set(finalDoc);
+      if (finalDoc.main.length > 0) {
+        console.log(`Uploading ${date}: Found ${finalDoc.main.length} main dishes.`);
+        await db.collection('menus').doc(date).set(finalDoc);
+      }
     }
-    console.log('Update complete!');
+    console.log('Update process finished.');
   } catch (e) {
-    console.error('Failed:', e);
+    console.error('Script Error:', e);
+    process.exit(1);
   }
 }
 
