@@ -56,7 +56,7 @@ async function scrapeMenu() {
           const dayMatch = firstCellText.match(/(ראשון|שני|שלישי|רביעי|חמישי)/);
           if (dayMatch && cells.length > 1) {
             const dateText = cells[cells.length - 1].textContent.trim();
-            const dateMatch = dateText.match(/(\d{2})\.(\d{2})\.(\d{4})/);
+            const dateMatch = dateText.match(/(\d{1,2})\.(\d{1,2})\.(\d{4})/);
             if (dateMatch) {
               currentDay = `${dateMatch[3]}-${dateMatch[2]}-${dateMatch[1]}`;
               if (!data[currentDay]) {
