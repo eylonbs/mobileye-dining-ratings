@@ -56,11 +56,12 @@ async function scrapeMenu() {
           const dayMatch = firstCellText.match(/(ראשון|שני|שלישי|רביעי|חמישי)/);
           if (dayMatch && cells.length > 1) {
             const dateText = cells[cells.length - 1].textContent.trim();
-            const dateMatch = dateText.match(/(\d{1,2})[\.\/](\d{1,2})[\.\/](\d{4})/);
+            const dateMatch = dateText.match(/(\d{1,2})[\.\/](\d{1,2})[\.\/](\d{2,4})/);
             if (dateMatch) {
                 const day = dateMatch[1].padStart(2, '0');
                 const month = dateMatch[2].padStart(2, '0');
-                const year = dateMatch[3];
+                let year = dateMatch[3];
+                if (year.length === 2) year = '20' + year; // Convert 26 to 2026
                 currentDay = `${year}-${month}-${day}`;
             }
           }
