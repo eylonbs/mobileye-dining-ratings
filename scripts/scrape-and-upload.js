@@ -12,13 +12,20 @@ const db = admin.firestore();
 
 // Hebrew category mappings
 const CATEGORIES = {
-  מרקים: 'soups',
+  'מרקים': 'soups',
+  'מרק': 'soups',
   'עמדת דג יומי': 'main',
+  'דגים': 'main',
   'עמדת צימחוני טבעוני': 'main',
+  'צמחוני': 'main',
   'עמדת גריל': 'main',
-  התבשיליה: 'main',
+  'גריל': 'main',
+  'התבשיליה': 'main',
+  'תבשילים': 'main',
   'עמדת ספיישל יומית': 'main',
-  קינוחים: 'desserts',
+  'ספיישל': 'main',
+  'קינוחים': 'desserts',
+  'מתוקים': 'desserts'
 };
 
 async function scrapeMenu() {
@@ -101,7 +108,9 @@ async function uploadToFirebase(menuData) {
 
     // Map Hebrew categories to app sections
     for (const [hebrewCategory, dishes] of Object.entries(categories)) {
-      const appSection = CATEGORIES[hebrewCategory];
+      // Look for any category that contains the Hebrew word
+      const appSection = Object.entries(CATEGORIES).find(([key]) => 
+        hebrewCategory.includes(key) || key.includes(hebrewCategory))?.[1];
       if (appSection) {
         menuDoc[appSection].push(...dishes);
       }
