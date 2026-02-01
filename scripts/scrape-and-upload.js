@@ -2,7 +2,7 @@ import puppeteer from 'puppeteer';
 import admin from 'firebase-admin';
 
 // Parse service account JSON from environment variable
-const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT.trim());
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
