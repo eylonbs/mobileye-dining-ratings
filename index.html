@@ -30,6 +30,9 @@
         .leaderboard-gold { border-color: #fbbf24; background-color: #fffbeb; }
         .leaderboard-red { border-color: #ef4444; background-color: #fef2f2; }
         .animate-pulse-slow { animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+        .tab-button { border-radius: 9999px; padding: 6px 14px; font-weight: 700; }
+        .tab-active { background-color: #0ea5e9; color: white; }
+        .tab-inactive { background-color: #e0f2fe; color: #0369a1; }
     </style>
 </head>
 <body>
@@ -55,6 +58,7 @@
             const [menu, setMenu] = useState(null);
             const [allRatings, setAllRatings] = useState([]);
             const [todayStr] = useState(new Date().toISOString().split('T')[0]);
+            const [activeTab, setActiveTab] = useState('today'); // 'today' | 'history'
 
             useEffect(() => {
                 return auth.onAuthStateChanged(async (u) => {
@@ -76,7 +80,7 @@
                     setAllRatings(snap.docs.map(d => d.data()));
                 });
                 return () => { menuUnsub(); ratingsUnsub(); };
-            }, [user]);
+            }, [user, todayStr]);
 
             const dishStats = useMemo(() => {
                 const stats = {};
@@ -92,23 +96,26 @@
                         avg: (s.sum / s.count).toFixed(1)
                     }))
                     .filter(item => !isNaN(parseFloat(item.avg)))
-                    .sort((a, b) => b.avg - a.avg);            }, [allRatings]);
+                    .sort((a, b) => b.avg - a.avg);
+            }, [allRatings]);
 
-            if (loading) return React.createElement('div', { className: 'flex items-center justify-center min-h-screen text-blue-500 font-bold text-xl' }, 'Gathering the ingredients...');
+            if (loading) {
+                return React.createElement('div', { className: 'flex items-center justify-center min-h-screen text-blue-500 font-bold text-xl' }, 'Gathering the ingredients...');
+            }
             if (!user) return React.createElement(Login);
 
             return React.createElement('div', { className: 'max-w-4xl mx-auto p-4 md:p-8' }, [
-                React.createElement('header', { className: 'flex flex-col md:flex-row justify-between items-center mb-12 gap-4', key: 'header' }, [
+                React.createElement('header', { className: 'flex flex-col md:flex-row justify-between items-center mb-6 gap-4', key: 'header' }, [
                     React.createElement('div', { className: 'text-center md:text-left' }, [
                         React.createElement('h1', { className: 'text-4xl md:text-5xl font-black text-blue-600 tracking-tight' }, 'Yum-O-Meter'),
                         React.createElement('p', { className: 'text-blue-400 font-bold flex items-center justify-center md:justify-start gap-2' }, '🚗 MOBILEYE JERUSALEM'),
-                                                                 React.createElement('a', {
-                                                                        href: 'https://github.com/eylonbs/mobileye-dining-ratings',
-                                                                        target: '_blank',
-                                                                        rel: 'noopener noreferrer',
-                                                                        className: 'inline-block mt-2 text-blue-600 font-bold underline'
-                                                                    }, 'View on GitHub')
-                        ]),
+                        React.createElement('a', {
+                            href: 'https://github.com/eylonbs/mobileye-dining-ratings',
+                            target: '_blank',
+                            rel: 'noopener noreferrer',
+                            className: 'inline-block mt-2 text-blue-600 font-bold underline'
+                        }, 'View on GitHub')
+                    ]),
                     React.createElement('div', { className: 'glass-card p-4 flex items-center gap-4' }, [
                         React.createElement('div', { className: 'text-right' }, [
                             React.createElement('p', { className: 'text-sm font-bold text-gray-600' }, user.email),
@@ -116,17 +123,31 @@
                         ])
                     ])
                 ]),
+
+                // Tabs
+                React.createElement('div', { className: 'flex gap-3 mb-6', key: 'tabs' }, [
+                    React.createElement('button', {
+                        className: 'tab-button ' + (activeTab === 'today' ? 'tab-active' : 'tab-inactive'),
+                        onClick: () => setActiveTab('today')
+                    }, 'Today'),
+                    React.createElement('button', {
+                        className: 'tab-button ' + (activeTab === 'history' ? 'tab-active' : 'tab-inactive'),
+                        onClick: () => setActiveTab('history')
+                    }, 'History')
+                ]),
+
                 isAdmin && React.createElement(AdminPanel, { todayStr, key: 'admin' }),
-                dishStats.length > 0 && React.createElement(TopSection, { stats: dishStats, key: 'top' }),
-                React.createElement(RatingSection, { menu, todayStr, allRatings, key: 'rating' })
+                activeTab === 'today' && dishStats.length > 0 && React.createElement(TopSection, { stats: dishStats, key: 'top' }),
+                activeTab === 'today' && React.createElement(RatingSection, { menu, todayStr, key: 'rating' }),
+                activeTab === 'history' && React.createElement(HistoryPage, { key: 'history' })
             ]);
         }
 
         function TopSection({ stats }) {
             const best = stats[0];
             const worst = stats[stats.length - 1];
-            
-            return React.createElement('div', { className: 'grid grid-cols-1 md:grid-cols-2 gap-6 mb-12' }, [
+
+            return React.createElement('div', { className: 'grid grid-cols-1 md:grid-cols-2 gap-6 mb-6' }, [
                 best && React.createElement('div', { className: 'glass-card p-6 leaderboard-gold animate-pulse-slow' }, [
                     React.createElement('p', { className: 'text-xs font-black text-yellow-600 uppercase mb-2' }, '👑 The Employee Choice'),
                     React.createElement('h3', { className: 'text-xl font-black text-gray-800' }, best.dishName),
@@ -200,7 +221,7 @@
                 }))
             ]);
 
-            return React.createElement('div', { className: 'glass-card p-6 mb-12' }, [
+            return React.createElement('div', { className: 'glass-card p-6 mb-6' }, [
                 React.createElement('h3', { className: 'text-xl font-black mb-6 text-blue-600' }, 'MANAGER DASHBOARD'),
                 React.createElement('div', { className: 'grid grid-cols-1 md:grid-cols-3 gap-6 mb-6' }, [
                     InputGroup('Main Dishes', 'main', 4),
@@ -211,79 +232,273 @@
             ]);
         }
 
-        function RatingSection({ menu, todayStr, allRatings }) {
+        // ===== Rating section: stars with undo + Send button =====
+        function RatingSection({ menu, todayStr }) {
+            const user = auth.currentUser;
+            const [selectedRatings, setSelectedRatings] = useState({}); // dishId -> rating 0-5
+            const [isSending, setIsSending] = useState(false);
+
             if (!menu) return React.createElement('div', { className: 'glass-card p-12 text-center' }, "Waiting for today's menu...");
 
-            return React.createElement('div', { className: 'space-y-12' }, [
-                React.createElement(RatingGroup, { title: 'Main Dishes', items: menu.main, type: 'main', todayStr, allRatings, badgeClass: 'main-badge', icon: '🍖' }),
-                React.createElement(RatingGroup, { title: "Today's Soups", items: menu.soups, type: 'soups', todayStr, allRatings, badgeClass: 'soup-badge', icon: '🥣' }),
-                React.createElement(RatingGroup, { title: 'Sweet Desserts', items: menu.desserts, type: 'desserts', todayStr, allRatings, badgeClass: 'dessert-badge', icon: '🍰' })
-            ]);
-        }
+            const buildDishId = (category, dishName) => `${todayStr}_${category}_${dishName}`;
 
-        function RatingGroup({ title, items, type, todayStr, allRatings, badgeClass, icon }) {
-            const filteredItems = (items || []).filter(i => i.trim() !== '');
-            if (filteredItems.length === 0) return null;
-
-            const user = auth.currentUser;
-            const hasRatedAnyInCategory = allRatings.some(r => r.userId === user.uid && r.category === type);
-
-            return React.createElement('section', null, [
-                React.createElement('div', { className: 'flex items-center gap-3 mb-6' }, [
-                    React.createElement('span', { className: 'text-3xl' }, icon),
-                    React.createElement('h2', { className: 'text-2xl font-black text-gray-800' }, title)
-                ]),
-                React.createElement('div', { className: 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6' },
-                    filteredItems.map((item, idx) => React.createElement(DishCard, { 
-                        key: idx, 
-                        dishName: item, 
-                        category: type, 
-                        todayStr, 
-                        allRatings,
-                        badgeClass,
-                        isLocked: hasRatedAnyInCategory
-                    }))
-                )
-            ]);
-        }
-
-        function DishCard({ dishName, category, todayStr, allRatings, badgeClass, isLocked }) {
-            const [comment, setComment] = useState('');
-            const user = auth.currentUser;
-            const dishId = `${todayStr}_${category}_${dishName}`;
-            
-            const myRating = allRatings.find(r => r.userId === user.uid && r.dishId === dishId);
-            const othersRatings = allRatings.filter(r => r.dishId === dishId);
-            const avg = othersRatings.length ? (othersRatings.reduce((a, b) => a + b.rating, 0) / othersRatings.length).toFixed(1) : 0;
-
-            const submitRating = async (r) => {
-                if (isLocked && !myRating) return;
-                const docId = `${user.uid}_${dishId}`;
-                await db.collection('ratings').doc(docId).set({
-                    userId: user.uid, dishId, dishName, category, todayStr,
-                    rating: r, comment, timestamp: firebase.firestore.FieldValue.serverTimestamp()
+            const handleStarClick = (dishId, star) => {
+                setSelectedRatings(prev => {
+                    const current = prev[dishId] || 0;
+                    const next = current === star ? 0 : star;
+                    return { ...prev, [dishId]: next };
                 });
             };
 
-            return React.createElement('div', { className: `glass-card p-6 flex flex-col h-full transition-all ${myRating ? 'border-green-300 bg-green-50' : isLocked ? 'opacity-50 grayscale cursor-not-allowed' : 'hover:border-blue-300'}` }, [
-                React.createElement('div', { className: 'flex justify-between items-start mb-4' }, [
-                    React.createElement('span', { className: `category-badge ${badgeClass}` }, category),
-                    othersRatings.length > 0 && React.createElement('div', { className: 'text-right font-black text-gray-800' }, `⭐ ${avg} (${othersRatings.length})`)
+            const hasAnyRating = Object.values(selectedRatings).some(v => v > 0);
+
+            const handleSend = async () => {
+                if (!user || !hasAnyRating || isSending) return;
+                setIsSending(true);
+                try {
+                    const payload = Object.entries(selectedRatings)
+                        .filter(([_, rating]) => rating > 0)
+                        .map(([dishId, rating]) => {
+                            const [date, category, ...rest] = dishId.split('_');
+                            const dishName = rest.join('_');
+                            return { dishId, dishName, category, todayStr: date, rating };
+                        });
+
+                    const batch = db.batch();
+                    payload.forEach(item => {
+                        const docId = `${user.uid}_${item.dishId}`;
+                        const ref = db.collection('ratings').doc(docId);
+                        batch.set(ref, {
+                            userId: user.uid,
+                            dishId: item.dishId,
+                            dishName: item.dishName,
+                            category: item.category,
+                            todayStr: item.todayStr,
+                            rating: item.rating,
+                            comment: '',
+                            timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                        });
+                    });
+
+                    await batch.commit();
+                    setSelectedRatings({});
+                    alert('Thanks! Your ratings were sent.');
+                } catch (e) {
+                    console.error(e);
+                    alert('Error sending ratings, please try again.');
+                } finally {
+                    setIsSending(false);
+                }
+            };
+
+            const renderGroup = (title, items, type, badgeClass, icon) => {
+                const filteredItems = (items || []).filter(i => i.trim() !== '');
+                if (filteredItems.length === 0) return null;
+
+                return React.createElement('section', { className: 'mb-8' }, [
+                    React.createElement('div', { className: 'flex items-center gap-3 mb-4' }, [
+                        React.createElement('span', { className: 'text-3xl' }, icon),
+                        React.createElement('h2', { className: 'text-2xl font-black text-gray-800' }, title)
+                    ]),
+                    React.createElement('div', { className: 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6' },
+                        filteredItems.map((item, idx) => {
+                            const dishId = buildDishId(type, item);
+                            const selected = selectedRatings[dishId] || 0;
+
+                            return React.createElement('div', {
+                                key: idx,
+                                className: 'glass-card p-6 flex flex-col h-full transition-all'
+                            }, [
+                                React.createElement('div', { className: 'flex justify-between items-start mb-4' }, [
+                                    React.createElement('span', { className: `category-badge ${badgeClass}` }, type),
+                                ]),
+                                React.createElement('h3', { className: 'text-xl font-black text-gray-800 mb-6 flex-grow' }, item),
+                                React.createElement('div', { className: 'flex justify-center gap-2 mb-2' },
+                                    [1, 2, 3, 4, 5].map(star =>
+                                        React.createElement('span', {
+                                            key: star,
+                                            onClick: () => handleStarClick(dishId, star),
+                                            className: `star-rating ${star <= selected ? 'star-active' : 'star-inactive'}`
+                                        }, star <= selected ? '⭐' : '☆')
+                                    )
+                                )
+                            ]);
+                        })
+                    )
+                ]);
+            };
+
+            return React.createElement('div', { className: 'space-y-6' }, [
+                renderGroup('Main Dishes', menu.main, 'main', 'main-badge', '🍖'),
+                renderGroup("Today's Soups", menu.soups, 'soups', 'soup-badge', '🥣'),
+                renderGroup('Sweet Desserts', menu.desserts, 'desserts', 'dessert-badge', '🍰'),
+                React.createElement('div', { className: 'flex justify-center mt-4' }, [
+                    React.createElement('button', {
+                        className: 'btn-primary px-8 py-3 disabled:opacity-50',
+                        onClick: handleSend,
+                        disabled: !hasAnyRating || isSending
+                    }, isSending ? 'Sending…' : 'Send ratings')
+                ])
+            ]);
+        }
+
+        // ===== History page with monthly stats + CSV =====
+        function HistoryPage() {
+            const [year, setYear] = useState(new Date().getFullYear());
+            const [month, setMonth] = useState(new Date().getMonth() + 1); // 1-12
+            const [stats, setStats] = useState([]);
+            const [loading, setLoading] = useState(false);
+
+            useEffect(() => {
+                const load = async () => {
+                    setLoading(true);
+                    try {
+                        const monthPrefix = `${year}-${String(month).padStart(2, '0')}`;
+                        const snap = await db.collection('ratings')
+                            .where('todayStr', '>=', `${monthPrefix}-01`)
+                            .where('todayStr', '<=', `${monthPrefix}-31`)
+                            .get();
+
+                        const map = {};
+                        snap.forEach(doc => {
+                            const d = doc.data();
+                            if (!map[d.dishId]) {
+                                map[d.dishId] = {
+                                    dishId: d.dishId,
+                                    dishName: d.dishName || d.dishId,
+                                    category: d.category || 'main',
+                                    total: 0,
+                                    count: 0
+                                };
+                            }
+                            map[d.dishId].total += d.rating;
+                            map[d.dishId].count += 1;
+                        });
+
+                        const arr = Object.values(map).map(e => ({
+                            dishId: e.dishId,
+                            dishName: e.dishName,
+                            category: e.category,
+                            count: e.count,
+                            avgRating: e.count > 0 ? e.total / e.count : 0
+                        }));
+
+                        setStats(arr);
+                    } finally {
+                        setLoading(false);
+                    }
+                };
+                load();
+            }, [year, month]);
+
+            const byCategory = useMemo(() => {
+                const groups = { main: [], soups: [], desserts: [] };
+                stats.forEach(s => {
+                    const cat = s.category;
+                    if (!groups[cat]) groups[cat] = [];
+                    groups[cat].push(s);
+                });
+                Object.keys(groups).forEach(cat => {
+                    groups[cat].sort((a, b) => {
+                        if (b.avgRating !== a.avgRating) return b.avgRating - a.avgRating;
+                        return b.count - a.count;
+                    });
+                });
+                return groups;
+            }, [stats]);
+
+            const downloadCsv = () => {
+                if (!stats.length) return;
+                const header = ['dishId', 'dishName', 'category', 'avgRating', 'count'];
+                const lines = [
+                    header.join(','),
+                    ...stats.map(s =>
+                        [
+                            s.dishId,
+                            JSON.stringify(s.dishName),
+                            s.category,
+                            s.avgRating.toFixed(3),
+                            s.count
+                        ].join(',')
+                    )
+                ];
+                const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                const monthStr = String(month).padStart(2, '0');
+                a.href = url;
+                a.download = `mobileye-dining-${year}-${monthStr}.csv`;
+                a.click();
+                URL.revokeObjectURL(url);
+            };
+
+            const renderTable = (title, arr) => {
+                if (!arr || !arr.length) return null;
+                return React.createElement('section', { className: 'glass-card p-4 mb-4' }, [
+                    React.createElement('h2', { className: 'text-xl font-black mb-2' }, title),
+                    React.createElement('table', { className: 'w-full text-sm' }, [
+                        React.createElement('thead', null,
+                            React.createElement('tr', { className: 'text-left border-b' }, [
+                                React.createElement('th', { className: 'py-1 pr-2' }, '#'),
+                                React.createElement('th', { className: 'py-1 pr-2' }, 'Dish'),
+                                React.createElement('th', { className: 'py-1 pr-2' }, 'Avg'),
+                                React.createElement('th', { className: 'py-1 pr-2' }, 'Votes')
+                            ])
+                        ),
+                        React.createElement('tbody', null,
+                            arr.map((dish, idx) =>
+                                React.createElement('tr', { key: dish.dishId, className: 'border-b last:border-0' }, [
+                                    React.createElement('td', { className: 'py-1 pr-2' }, idx + 1),
+                                    React.createElement('td', { className: 'py-1 pr-2' }, dish.dishName),
+                                    React.createElement('td', { className: 'py-1 pr-2' }, dish.avgRating.toFixed(2)),
+                                    React.createElement('td', { className: 'py-1 pr-2' }, dish.count)
+                                ])
+                            )
+                        )
+                    ])
+                ]);
+            };
+
+            return React.createElement('div', { className: 'space-y-4' }, [
+                React.createElement('div', { className: 'glass-card p-4 flex flex-wrap gap-4 items-center justify-between' }, [
+                    React.createElement('div', { className: 'flex gap-3 items-center' }, [
+                        React.createElement('label', { className: 'text-sm font-bold text-gray-700' }, [
+                            'Year:',
+                            React.createElement('input', {
+                                type: 'number',
+                                className: 'ml-2 w-20 input-field py-1 px-2',
+                                value: year,
+                                onChange: e => setYear(parseInt(e.target.value || new Date().getFullYear(), 10))
+                            })
+                        ]),
+                        React.createElement('label', { className: 'text-sm font-bold text-gray-700' }, [
+                            'Month:',
+                            React.createElement('input', {
+                                type: 'number',
+                                className: 'ml-2 w-16 input-field py-1 px-2',
+                                min: 1,
+                                max: 12,
+                                value: month,
+                                onChange: e => {
+                                    const v = parseInt(e.target.value || '1', 10);
+                                    setMonth(Math.min(12, Math.max(1, v)));
+                                }
+                            })
+                        ])
+                    ]),
+                    React.createElement('button', {
+                        className: 'btn-primary px-4 py-2 text-sm',
+                        onClick: downloadCsv,
+                        disabled: !stats.length
+                    }, 'Download CSV')
                 ]),
-                React.createElement('h3', { className: 'text-xl font-black text-gray-800 mb-6 flex-grow' }, dishName),
-                React.createElement('div', { className: 'flex justify-center gap-2 mb-6' },
-                    [1, 2, 3, 4, 5].map(star => React.createElement('span', {
-                        key: star,
-                        onClick: () => submitRating(star),
-                        className: `star-rating ${star <= (myRating?.rating || 0) ? 'star-active' : 'star-inactive'}`
-                    }, star <= (myRating?.rating || 0) ? '⭐' : '☆'))
-                ),
-                myRating && React.createElement('input', {
-                    placeholder: 'Edit comment...', value: comment || myRating.comment,
-                    onChange: e => setComment(e.target.value),
-                    onBlur: () => submitRating(myRating.rating),
-                    className: 'input-field text-sm font-medium'
-                })
+                loading
+                    ? React.createElement('p', { className: 'text-center text-blue-500 font-bold' }, 'Loading history...')
+                    : React.createElement('div', { className: 'space-y-3' }, [
+                        renderTable('Mains', byCategory.main),
+                        renderTable('Soups', byCategory.soups),
+                        renderTable('Desserts', byCategory.desserts)
+                    ])
             ]);
         }
 
