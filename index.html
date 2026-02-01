@@ -113,8 +113,16 @@
                             href: 'https://github.com/eylonbs/mobileye-dining-ratings',
                             target: '_blank',
                             rel: 'noopener noreferrer',
-                            className: 'inline-block mt-2 text-blue-600 font-bold underline'
-                        }, 'View on GitHub')
+                            className: 'inline-flex items-center justify-center mt-2 w-9 h-9 rounded-full bg-black hover:bg-gray-800 transition-colors',
+                            'aria-label': 'View on GitHub'
+                        }, React.createElement('svg', {
+                            xmlns: 'http://www.w3.org/2000/svg',
+                            viewBox: '0 0 24 24',
+                            fill: 'white',
+                            className: 'w-5 h-5'
+                        }, React.createElement('path', {
+                            d: 'M12 .5C5.65.5.5 5.65.5 12c0 5.09 3.29 9.4 7.86 10.93.58.11.79-.25.79-.55 0-.27-.01-1-.02-1.96-3.2.69-3.88-1.54-3.88-1.54-.53-1.35-1.3-1.71-1.3-1.71-1.06-.72.08-.71.08-.71 1.18.08 1.8 1.21 1.8 1.21 1.04 1.78 2.74 1.27 3.41.97.11-.75.41-1.27.74-1.56-2.55-.29-5.23-1.28-5.23-5.7 0-1.26.45-2.3 1.2-3.11-.12-.29-.52-1.46.11-3.04 0 0 .97-.31 3.18 1.19a11 11 0 0 1 2.9-.39c.99 0 1.99.13 2.9.39 2.2-1.5 3.17-1.19 3.17-1.19.64 1.58.24 2.75.12 3.04.75.81 1.2 1.85 1.2 3.11 0 4.43-2.69 5.4-5.25 5.68.42.36.8 1.09.8 2.2 0 1.59-.01 2.87-.01 3.26 0 .31.21.67.8.55A10.52 10.52 0 0 0 23.5 12C23.5 5.65 18.35.5 12 .5z'
+                        })))
                     ]),
                     React.createElement('div', { className: 'glass-card p-4 flex items-center gap-4' }, [
                         React.createElement('div', { className: 'text-right' }, [
@@ -473,17 +481,24 @@
                         ]),
                         React.createElement('label', { className: 'text-sm font-bold text-gray-700' }, [
                             'Month:',
-                            React.createElement('input', {
-                                type: 'number',
-                                className: 'ml-2 w-16 input-field py-1 px-2',
-                                min: 1,
-                                max: 12,
-                                value: month,
-                                onChange: e => {
-                                    const v = parseInt(e.target.value || '1', 10);
-                                    setMonth(Math.min(12, Math.max(1, v)));
-                                }
-                            })
+                            React.createElement('select', {
+                                className: 'ml-2 input-field py-1 px-2',
+                                value: String(month),
+                                onChange: e => setMonth(parseInt(e.target.value, 10))
+                            }, [
+                                React.createElement('option', { key: 1, value: '1' }, 'January'),
+                                React.createElement('option', { key: 2, value: '2' }, 'February'),
+                                React.createElement('option', { key: 3, value: '3' }, 'March'),
+                                React.createElement('option', { key: 4, value: '4' }, 'April'),
+                                React.createElement('option', { key: 5, value: '5' }, 'May'),
+                                React.createElement('option', { key: 6, value: '6' }, 'June'),
+                                React.createElement('option', { key: 7, value: '7' }, 'July'),
+                                React.createElement('option', { key: 8, value: '8' }, 'August'),
+                                React.createElement('option', { key: 9, value: '9' }, 'September'),
+                                React.createElement('option', { key: 10, value: '10' }, 'October'),
+                                React.createElement('option', { key: 11, value: '11' }, 'November'),
+                                React.createElement('option', { key: 12, value: '12' }, 'December')
+                            ])
                         ])
                     ]),
                     React.createElement('button', {
