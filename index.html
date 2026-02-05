@@ -426,6 +426,7 @@
             const [month, setMonth] = useState(new Date().getMonth() + 1); // 1-12
             const [stats, setStats] = useState([]);
             const [loading, setLoading] = useState(false);
+            const [searchQuery, setSearchQuery] = useState('');
 
             useEffect(() => {
                 const load = async () => {
@@ -471,7 +472,12 @@
 
             const byCategory = useMemo(() => {
                 const groups = { main: [], soups: [], desserts: [] };
+                const query = searchQuery.toLowerCase().trim();
                 stats.forEach(s => {
+                    // Filter by search query if present
+                    if (query && !s.dishName.toLowerCase().includes(query)) {
+                        return;
+                    }
                     const cat = s.category;
                     if (!groups[cat]) groups[cat] = [];
                     groups[cat].push(s);
@@ -483,7 +489,7 @@
                     });
                 });
                 return groups;
-            }, [stats]);
+            }, [stats, searchQuery]);
 
             const downloadCsv = () => {
                 if (!stats.length) return;
@@ -538,6 +544,19 @@
             };
 
             return React.createElement('div', { className: 'space-y-4' }, [
+                // Search bar
+                React.createElement('div', { className: 'glass-card p-4' }, [
+                    React.createElement('div', { className: 'relative' }, [
+                        React.createElement('span', { className: 'absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400' }, '🔍'),
+                        React.createElement('input', {
+                            type: 'text',
+                            className: 'input-field pl-10 py-3',
+                            placeholder: 'Search for a dish...',
+                            value: searchQuery,
+                            onChange: e => setSearchQuery(e.target.value)
+                        })
+                    ])
+                ]),
                 React.createElement('div', { className: 'glass-card p-4 flex flex-wrap gap-4 items-center justify-between' }, [
                     React.createElement('div', { className: 'flex gap-3 items-center' }, [
                         React.createElement('label', { className: 'text-sm font-bold text-gray-700' }, [
@@ -582,7 +601,13 @@
                     : React.createElement('div', { className: 'space-y-3' }, [
                         renderTable('Mains', byCategory.main),
                         renderTable('Soups', byCategory.soups),
-                        renderTable('Desserts', byCategory.desserts)
+                        renderTable('Desserts', byCategory.desserts),
+                        // No results message
+                        searchQuery && !byCategory.main.length && !byCategory.soups.length && !byCategory.desserts.length &&
+                            React.createElement('div', { className: 'glass-card p-8 text-center' }, [
+                                React.createElement('p', { className: 'text-2xl mb-2' }, '🔍'),
+                                React.createElement('p', { className: 'text-gray-500 font-bold' }, `No dishes found matching "${searchQuery}"`)
+                            ])
                     ])
             ]);
         }
