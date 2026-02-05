@@ -164,24 +164,30 @@
             useEffect(() => {
                 if (!user) return;
                 const menuUnsub = db.collection('menus').doc(todayStr).onSnapshot(async doc => {
-                    if (doc.exists && doc.data().main && doc.data().main.length > 0) {
-                        setMenu(doc.data());
-                    } else {
-                        // Fallback to JSON file if no Firebase menu
-                        try {
-                            const now = new Date();
-                            const months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
-                            const jsonFile = `menu-data-${months[now.getMonth()]}-${now.getFullYear()}.json`;
-                            const response = await fetch(jsonFile);
-                            const data = await response.json();
-                            if (data[todayStr]) {
-                                setMenu(data[todayStr]);
-                            } else {
-                                setMenu(null);
-                            }
-                        } catch (e) {
-                            setMenu(null);
+                    // Always try to load from JSON first (has all categories including plantBased)
+                    let jsonMenu = null;
+                    try {
+                        const now = new Date();
+                        const months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+                        const jsonFile = `menu-data-${months[now.getMonth()]}-${now.getFullYear()}.json`;
+                        const response = await fetch(jsonFile);
+                        const data = await response.json();
+                        if (data[todayStr]) {
+                            jsonMenu = data[todayStr];
                         }
+                    } catch (e) {
+                        console.log('No JSON menu file found');
+                    }
+                    
+                    // Use JSON if available (has plantBased), otherwise fall back to Firebase
+                    if (jsonMenu && jsonMenu.plantBased && jsonMenu.plantBased.length > 0) {
+                        setMenu(jsonMenu);
+                    } else if (doc.exists && doc.data().main && doc.data().main.length > 0) {
+                        setMenu(doc.data());
+                    } else if (jsonMenu) {
+                        setMenu(jsonMenu);
+                    } else {
+                        setMenu(null);
                     }
                 });
                 const ratingsUnsub = db.collection('ratings').where('todayStr', '==', todayStr).onSnapshot(snap => {
