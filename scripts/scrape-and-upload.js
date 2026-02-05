@@ -1,4 +1,3 @@
-import puppeteer from 'puppeteer';
 import admin from 'firebase-admin';
 import fs from 'fs';
 import { parse } from 'csv-parse/sync';
@@ -15,158 +14,195 @@ const db = admin.firestore();
 
 // --- 2. CONFIGURATION ---
 const CSV_FILE_PATH = './menu.csv';
+const JSON_OUTPUT_PATH = './menu-data-feb-2026.json'; // Will be renamed dynamically
 
-// Hebrew mapping used by BOTH the CSV and the Scraper
-const CATEGORY_GROUPS = {
+// Hebrew day names mapping (column index to day info)
+const DAY_NAMES = {
+  1: { en: 'Sunday', he: 'יום ראשון' },
+  2: { en: 'Monday', he: 'יום שני' },
+  3: { en: 'Tuesday', he: 'יום שלישי' },
+  4: { en: 'Wednesday', he: 'יום רביעי' },
+  5: { en: 'Thursday', he: 'יום חמישי' }
+};
+
+// Category mapping - maps Hebrew row labels to app categories
+const CATEGORY_MAPPING = {
   'מרקים': 'soups',
   'מרק': 'soups',
   'התבשיליה': 'main',
   'עמדת גריל': 'main',
   'גריל': 'main',
-  'עמדת צימחוני טבעוני': 'main',
-  'צמחוני': 'main',
-  'טבעוני': 'main',
-  'עמדת דג יומית': 'main',
-  'דגים': 'main',
+  'עמדת צימחוני טבעוני': 'plantBased',
+  'צמחוני טבעוני': 'plantBased',
+  'צמחוני': 'plantBased',
+  'טבעוני': 'plantBased',
+  'עמדת דג יומית': 'fish',
+  'דג יומית': 'fish',
+  'דגים': 'fish',
   'עמדת ספיישל יומית': 'main',
+  'ספיישל יומית': 'main',
   'ספיישל': 'main',
   'קינוחים': 'desserts',
   'מתוקים': 'desserts'
 };
 
 // --- 3. HELPERS ---
-function addDays(startDateStr, daysToAdd) {
-  const [d, m, y] = startDateStr.split('.');
-  const date = new Date(`${y}-${m}-${d}`);
-  date.setDate(date.getDate() + daysToAdd);
-  return date.toISOString().split('T')[0];
+function parseDate(dateStr) {
+  // Parse DD.MM.YYYY format
+  const [d, m, y] = dateStr.split('.');
+  return new Date(parseInt(y), parseInt(m) - 1, parseInt(d));
 }
 
-// --- 4. OPTION A: EXCEL/CSV PROCESSING ---
+function formatDateISO(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function addDays(date, days) {
+  const result = new Date(date);
+  result.setDate(result.getDate() + days);
+  return result;
+}
+
+function getMonthName(month) {
+  const months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+  return months[month];
+}
+
+// --- 4. CSV PROCESSING ---
 async function processCSV() {
-  console.log('✅ CSV file detected. Processing Excel data...');
+  console.log('📄 Reading CSV file...');
   const fileContent = fs.readFileSync(CSV_FILE_PATH, 'utf-8');
   const rows = parse(fileContent, { skip_empty_lines: true });
 
-  const dateRange = rows[0][0]; // Cell A1
-  const startDate = dateRange.split('-')[0].trim();
+  // Parse date range from header (e.g., "01.02.2026-05.02.2026")
+  const dateRange = rows[0][0];
+  const [startDateStr, endDateStr] = dateRange.split('-').map(s => s.trim());
+  const startDate = parseDate(startDateStr);
   
+  console.log(`📅 Week: ${startDateStr} to ${endDateStr}`);
+
+  // Initialize menu data structure
   const menuData = {};
-  let lastAppCategory = null;
+  
+  // Create entries for each day (5 days: Sunday to Thursday)
+  for (let i = 0; i < 5; i++) {
+    const currentDate = addDays(startDate, i);
+    const dateKey = formatDateISO(currentDate);
+    const dayInfo = DAY_NAMES[i + 1];
+    
+    menuData[dateKey] = {
+      dayName: dayInfo.en,
+      dayNameHe: dayInfo.he,
+      soups: [],
+      main: [],
+      plantBased: [],
+      fish: [],
+      desserts: []
+    };
+  }
 
+  // Process each row
+  let lastCategory = null;
+  
   rows.forEach((row, rowIndex) => {
-    if (rowIndex < 1) return;
+    if (rowIndex === 0) return; // Skip header row
+    
     const rowLabel = row[0]?.trim();
-    if (rowLabel && CATEGORY_GROUPS[rowLabel]) {
-      lastAppCategory = CATEGORY_GROUPS[rowLabel];
+    
+    // Check if this row defines a category
+    if (rowLabel) {
+      // Find matching category
+      for (const [key, category] of Object.entries(CATEGORY_MAPPING)) {
+        if (rowLabel.includes(key) || key.includes(rowLabel)) {
+          lastCategory = category;
+          break;
+        }
+      }
     }
-    if (!lastAppCategory) return;
-
-    for (let i = 1; i <= 5; i++) {
-      const targetDate = addDays(startDate, i - 1);
-      const dish = row[i]?.trim();
-      if (dish && dish !== "" && dish !== "-") {
-        if (!menuData[targetDate]) menuData[targetDate] = { soups: [], main: [], desserts: [] };
-        if (!menuData[targetDate][lastAppCategory].includes(dish)) {
-          menuData[targetDate][lastAppCategory].push(dish);
+    
+    if (!lastCategory) return;
+    
+    // Process each day column (columns 1-5)
+    for (let col = 1; col <= 5; col++) {
+      const dish = row[col]?.trim();
+      const currentDate = addDays(startDate, col - 1);
+      const dateKey = formatDateISO(currentDate);
+      
+      if (dish && dish !== '' && dish !== '-' && menuData[dateKey]) {
+        // Avoid duplicates
+        if (!menuData[dateKey][lastCategory].includes(dish)) {
+          menuData[dateKey][lastCategory].push(dish);
         }
       }
     }
   });
-  return menuData;
+
+  return { menuData, startDate };
 }
 
-// --- 5. OPTION B: WEB SCRAPER (BACKUP LOGIC) ---
-async function scrapeMenu() {
-  console.log('🌐 No CSV found. Falling back to Puppeteer scraper...');
-  const browser = await puppeteer.launch({
-    headless: 'new',
-    args: ['--no-sandbox', '--disable-setuid-sandbox'],
-  });
+// --- 5. SAVE JSON FILE ---
+function saveJSON(menuData, startDate) {
+  const month = getMonthName(startDate.getMonth());
+  const year = startDate.getFullYear();
+  const jsonPath = `./menu-data-${month}-${year}.json`;
+  
+  fs.writeFileSync(jsonPath, JSON.stringify(menuData, null, 2), 'utf-8');
+  console.log(`💾 Saved JSON to ${jsonPath}`);
+  
+  return jsonPath;
+}
 
-  try {
-    const page = await browser.newPage();
-    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+// --- 6. UPLOAD TO FIREBASE ---
+async function uploadToFirebase(menuData) {
+  const dates = Object.keys(menuData);
+  
+  for (const date of dates) {
+    const content = menuData[date];
+    const totalDishes = content.main.length + content.plantBased.length + content.fish.length + content.soups.length;
     
-    await page.goto('https://life.mobileye.com/page/terminal-menu?SearchId=0', {
-      waitUntil: 'networkidle2',
-      timeout: 60000
-    });
-
-    await new Promise(r => setTimeout(r, 5000));
-
-    // RE-INSERTED LOGIC: Scans page text for dates and keywords
-    return await page.evaluate((CATEGORY_GROUPS) => {
-      const data = {};
-      const allElements = Array.from(document.querySelectorAll('div, td, tr, span, p, li'));
-      let currentDay = null;
-      let currentCategory = 'main';
-
-      allElements.forEach(el => {
-        const text = el.innerText ? el.innerText.trim() : "";
-        if (!text || text.length < 2 || text.length > 150) return;
-
-        const dateMatch = text.match(/(\d{1,2})[\.\/](\d{1,2})[\.\/](\d{2,4})/);
-        if (dateMatch) {
-          const day = dateMatch[1].padStart(2, '0');
-          const month = dateMatch[2].padStart(2, '0');
-          let year = dateMatch[3];
-          if (year.length === 2) year = '20' + year;
-          currentDay = `${year}-${month}-${day}`;
-          if (!data[currentDay]) data[currentDay] = { soups: [], main: [], desserts: [] };
-          return;
-        }
-
-        if (currentDay) {
-          let foundSection = null;
-          for (const [key, section] of Object.entries(CATEGORY_GROUPS)) {
-            if (text.includes(key)) {
-              foundSection = section;
-              break;
-            }
-          }
-
-          if (foundSection) {
-            currentCategory = foundSection;
-          } else if (text.length > 4 && !text.includes('Mobileye') && !text.includes('כל הזכויות')) {
-            if (!data[currentDay][currentCategory].includes(text)) {
-              data[currentDay][currentCategory].push(text);
-            }
-          }
-        }
-      });
-      return data;
-    }, CATEGORY_GROUPS);
-  } finally {
-    await browser.close();
+    if (totalDishes > 0) {
+      console.log(`🚀 Uploading ${date} (${content.dayName}): ${content.main.length} main, ${content.plantBased.length} plant-based, ${content.fish.length} fish`);
+      await db.collection('menus').doc(date).set(content);
+    }
   }
 }
 
-// --- 6. MAIN EXECUTION ---
+// --- 7. MAIN EXECUTION ---
 async function main() {
   try {
-    let menuData;
-    if (fs.existsSync(CSV_FILE_PATH)) {
-      menuData = await processCSV();
-    } else {
-      menuData = await scrapeMenu();
+    if (!fs.existsSync(CSV_FILE_PATH)) {
+      console.log('❌ No CSV file found at', CSV_FILE_PATH);
+      process.exit(1);
     }
 
+    // Process CSV
+    const { menuData, startDate } = await processCSV();
+    
     const dates = Object.keys(menuData);
     if (dates.length === 0) {
-      console.log('⚠️ No menu data found. (Check if site is blocked or CSV is empty)');
+      console.log('⚠️ No menu data found in CSV.');
       return;
     }
 
+    // Print summary
+    console.log('\n📊 Menu Summary:');
     for (const date of dates) {
-      const content = menuData[date];
-      // Only upload if there are actual dishes found
-      if (content.main.length > 0 || content.soups.length > 0) {
-        console.log(`🚀 Uploading ${date}: ${content.main.length} main dishes.`);
-        await db.collection('menus').doc(date).set(content);
-      }
+      const day = menuData[date];
+      console.log(`  ${day.dayName} (${date}): ${day.main.length} main, ${day.plantBased.length} 🌱, ${day.fish.length} 🐟, ${day.soups.length} 🥣, ${day.desserts.length} 🍰`);
     }
-    console.log('✨ Update completed!');
+
+    // Save JSON file
+    const jsonPath = saveJSON(menuData, startDate);
+    
+    // Upload to Firebase
+    await uploadToFirebase(menuData);
+    
+    console.log('\n✨ Update completed successfully!');
+    console.log(`📁 JSON file: ${jsonPath}`);
+    
   } catch (error) {
     console.error('❌ Script failed:', error);
     process.exit(1);
