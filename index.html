@@ -593,9 +593,9 @@
                     ])
                 ]),
                 React.createElement('div', { className: 'glass-card p-4 flex flex-wrap gap-4 items-center justify-between' }, [
-                    React.createElement('div', { className: 'flex gap-3 items-center' }, [
-                        React.createElement('label', { className: 'text-sm font-bold text-gray-700' }, [
-                            'Year:',
+                    React.createElement('div', { className: 'flex flex-wrap gap-3 items-center' }, [
+                        React.createElement('label', { className: 'text-sm font-bold text-gray-700 flex items-center' }, [
+                            React.createElement('span', null, 'Year:'),
                             React.createElement('input', {
                                 type: 'number',
                                 className: 'ml-2 w-20 input-field py-1 px-2',
@@ -603,8 +603,8 @@
                                 onChange: e => setYear(parseInt(e.target.value || new Date().getFullYear(), 10))
                             })
                         ]),
-                        React.createElement('label', { className: 'text-sm font-bold text-gray-700' }, [
-                            'Month:',
+                        React.createElement('label', { className: 'text-sm font-bold text-gray-700 flex items-center' }, [
+                            React.createElement('span', null, 'Month:'),
                             React.createElement('select', {
                                 className: 'ml-2 input-field py-1 px-2',
                                 value: String(month),
