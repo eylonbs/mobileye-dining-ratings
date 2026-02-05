@@ -33,6 +33,45 @@
         .tab-button { border-radius: 9999px; padding: 6px 14px; font-weight: 700; }
         .tab-active { background-color: #0ea5e9; color: white; }
         .tab-inactive { background-color: #e0f2fe; color: #0369a1; }
+        .dish-rating-badge { 
+            background: linear-gradient(135deg, #fbbf24, #f59e0b); 
+            color: #78350f; 
+            padding: 4px 10px; 
+            border-radius: 12px; 
+            font-size: 0.85rem; 
+            font-weight: 700; 
+            display: inline-flex; 
+            align-items: center; 
+            gap: 4px;
+            box-shadow: 0 2px 4px rgba(251, 191, 36, 0.3);
+        }
+        .comment-field { 
+            background: #f8fafc; 
+            border: 2px solid #e2e8f0; 
+            border-radius: 12px; 
+            padding: 10px; 
+            width: 100%; 
+            min-height: 60px; 
+            resize: vertical; 
+            font-family: inherit; 
+            font-size: 0.875rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .comment-field:focus { border-color: #3b82f6; }
+        .comment-field::placeholder { color: #94a3b8; }
+        .weekly-day-card { 
+            background: rgba(255, 255, 255, 0.9); 
+            border-radius: 16px; 
+            border: 2px solid #e0f2fe;
+            overflow: hidden;
+        }
+        .weekly-day-header { 
+            background: linear-gradient(135deg, #0ea5e9, #2563eb); 
+            color: white; 
+            padding: 12px 16px; 
+            font-weight: 700;
+        }
     </style>
 </head>
 <body>
@@ -58,7 +97,7 @@
             const [menu, setMenu] = useState(null);
             const [allRatings, setAllRatings] = useState([]);
             const [todayStr] = useState(new Date().toISOString().split('T')[0]);
-            const [activeTab, setActiveTab] = useState('today'); // 'today' | 'history'
+            const [activeTab, setActiveTab] = useState('today'); // 'today' | 'history' | 'weekly'
 
             useEffect(() => {
                 return auth.onAuthStateChanged(async (u) => {
@@ -139,6 +178,10 @@
                         onClick: () => setActiveTab('today')
                     }, 'Today'),
                     React.createElement('button', {
+                        className: 'tab-button ' + (activeTab === 'weekly' ? 'tab-active' : 'tab-inactive'),
+                        onClick: () => setActiveTab('weekly')
+                    }, '📅 Weekly Menu'),
+                    React.createElement('button', {
                         className: 'tab-button ' + (activeTab === 'history' ? 'tab-active' : 'tab-inactive'),
                         onClick: () => setActiveTab('history')
                     }, 'History')
@@ -146,7 +189,8 @@
 
                 isAdmin && React.createElement(AdminPanel, { todayStr, key: 'admin' }),
                 activeTab === 'today' && dishStats.length > 0 && React.createElement(TopSection, { stats: dishStats, key: 'top' }),
-                activeTab === 'today' && React.createElement(RatingSection, { menu, todayStr, key: 'rating' }),
+                activeTab === 'today' && React.createElement(RatingSection, { menu, todayStr, dishStats, key: 'rating' }),
+                activeTab === 'weekly' && React.createElement(WeeklyMenuPage, { key: 'weekly' }),
                 activeTab === 'history' && React.createElement(HistoryPage, { key: 'history' })
             ]);
         }
@@ -241,10 +285,17 @@
         }
 
         // ===== Rating section: stars with undo + Send button =====
-        function RatingSection({ menu, todayStr }) {
+        function RatingSection({ menu, todayStr, dishStats }) {
             const user = auth.currentUser;
             const [selectedRatings, setSelectedRatings] = useState({}); // dishId -> rating 0-5
+            const [selectedComments, setSelectedComments] = useState({}); // dishId -> comment string
             const [isSending, setIsSending] = useState(false);
+
+            // Helper to get dish stats by dishId
+            const getDishRating = (dishId) => {
+                if (!dishStats) return null;
+                return dishStats.find(s => s.id === dishId);
+            };
 
             if (!menu) return React.createElement('div', { className: 'glass-card p-12 text-center' }, "Waiting for today's menu...");
 
@@ -258,6 +309,10 @@
                 });
             };
 
+            const handleCommentChange = (dishId, comment) => {
+                setSelectedComments(prev => ({ ...prev, [dishId]: comment }));
+            };
+
             const hasAnyRating = Object.values(selectedRatings).some(v => v > 0);
 
             const handleSend = async () => {
@@ -269,7 +324,8 @@
                         .map(([dishId, rating]) => {
                             const [date, category, ...rest] = dishId.split('_');
                             const dishName = rest.join('_');
-                            return { dishId, dishName, category, todayStr: date, rating };
+                            const comment = selectedComments[dishId] || '';
+                            return { dishId, dishName, category, todayStr: date, rating, comment };
                         });
 
                     const batch = db.batch();
@@ -283,13 +339,14 @@
                             category: item.category,
                             todayStr: item.todayStr,
                             rating: item.rating,
-                            comment: '',
+                            comment: item.comment,
                             timestamp: firebase.firestore.FieldValue.serverTimestamp()
                         });
                     });
 
                     await batch.commit();
                     setSelectedRatings({});
+                    setSelectedComments({});
                     alert('Thanks! Your ratings were sent.');
                 } catch (e) {
                     console.error(e);
@@ -312,6 +369,8 @@
                         filteredItems.map((item, idx) => {
                             const dishId = buildDishId(type, item);
                             const selected = selectedRatings[dishId] || 0;
+                            const dishRating = getDishRating(dishId);
+                            const currentComment = selectedComments[dishId] || '';
 
                             return React.createElement('div', {
                                 key: idx,
@@ -319,9 +378,14 @@
                             }, [
                                 React.createElement('div', { className: 'flex justify-between items-start mb-4' }, [
                                     React.createElement('span', { className: `category-badge ${badgeClass}` }, type),
+                                    dishRating && React.createElement('span', { className: 'dish-rating-badge' }, [
+                                        '⭐ ',
+                                        dishRating.avg,
+                                        React.createElement('span', { className: 'text-xs opacity-75 ml-1' }, `(${dishRating.count})`)
+                                    ])
                                 ]),
-                                React.createElement('h3', { className: 'text-xl font-black text-gray-800 mb-6 flex-grow' }, item),
-                                React.createElement('div', { className: 'flex justify-center gap-2 mb-2' },
+                                React.createElement('h3', { className: 'text-xl font-black text-gray-800 mb-4 flex-grow' }, item),
+                                React.createElement('div', { className: 'flex justify-center gap-2 mb-3' },
                                     [1, 2, 3, 4, 5].map(star =>
                                         React.createElement('span', {
                                             key: star,
@@ -329,7 +393,13 @@
                                             className: `star-rating ${star <= selected ? 'star-active' : 'star-inactive'}`
                                         }, star <= selected ? '⭐' : '☆')
                                     )
-                                )
+                                ),
+                                selected > 0 && React.createElement('textarea', {
+                                    className: 'comment-field mt-2',
+                                    placeholder: 'Add a comment (optional)...',
+                                    value: currentComment,
+                                    onChange: (e) => handleCommentChange(dishId, e.target.value)
+                                })
                             ]);
                         })
                     )
@@ -514,6 +584,119 @@
                         renderTable('Soups', byCategory.soups),
                         renderTable('Desserts', byCategory.desserts)
                     ])
+            ]);
+        }
+
+        // ===== Weekly Menu Page =====
+        function WeeklyMenuPage() {
+            const [weeklyData, setWeeklyData] = useState(null);
+            const [loading, setLoading] = useState(true);
+            const [error, setError] = useState(null);
+
+            useEffect(() => {
+                const loadWeeklyMenu = async () => {
+                    try {
+                        const response = await fetch('menu-data-feb-2026.json');
+                        if (!response.ok) throw new Error('Failed to load menu');
+                        const data = await response.json();
+                        setWeeklyData(data);
+                    } catch (err) {
+                        setError(err.message);
+                    } finally {
+                        setLoading(false);
+                    }
+                };
+                loadWeeklyMenu();
+            }, []);
+
+            const formatDate = (dateStr) => {
+                const date = new Date(dateStr);
+                const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                return `${days[date.getDay()]}, ${months[date.getMonth()]} ${date.getDate()}`;
+            };
+
+            const isToday = (dateStr) => {
+                const today = new Date().toISOString().split('T')[0];
+                return dateStr === today;
+            };
+
+            if (loading) {
+                return React.createElement('div', { className: 'glass-card p-12 text-center' }, 
+                    React.createElement('p', { className: 'text-blue-500 font-bold' }, 'Loading weekly menu...')
+                );
+            }
+
+            if (error) {
+                return React.createElement('div', { className: 'glass-card p-12 text-center' }, 
+                    React.createElement('p', { className: 'text-red-500 font-bold' }, `Error: ${error}`)
+                );
+            }
+
+            if (!weeklyData) {
+                return React.createElement('div', { className: 'glass-card p-12 text-center' }, 
+                    React.createElement('p', { className: 'text-gray-500 font-bold' }, 'No weekly menu available')
+                );
+            }
+
+            const sortedDates = Object.keys(weeklyData).sort();
+
+            const renderDishList = (items, icon) => {
+                if (!items || items.length === 0) return null;
+                return React.createElement('ul', { className: 'space-y-1' },
+                    items.filter(item => item.trim()).map((item, idx) =>
+                        React.createElement('li', { 
+                            key: idx, 
+                            className: 'text-gray-700 text-sm flex items-start gap-2' 
+                        }, [
+                            React.createElement('span', { className: 'shrink-0' }, icon),
+                            React.createElement('span', null, item)
+                        ])
+                    )
+                );
+            };
+
+            return React.createElement('div', { className: 'space-y-6' }, [
+                React.createElement('div', { className: 'text-center mb-6' }, [
+                    React.createElement('h2', { className: 'text-3xl font-black text-blue-600 mb-2' }, '📅 Weekly Menu'),
+                    React.createElement('p', { className: 'text-gray-500' }, 'Plan your meals for the week')
+                ]),
+                React.createElement('div', { className: 'grid grid-cols-1 md:grid-cols-2 gap-6' },
+                    sortedDates.map(dateStr => {
+                        const dayMenu = weeklyData[dateStr];
+                        const today = isToday(dateStr);
+                        
+                        return React.createElement('div', { 
+                            key: dateStr,
+                            className: `weekly-day-card ${today ? 'ring-4 ring-blue-400 ring-opacity-50' : ''}`
+                        }, [
+                            React.createElement('div', { 
+                                className: `weekly-day-header ${today ? 'bg-gradient-to-r from-green-500 to-emerald-600' : ''}`
+                            }, [
+                                React.createElement('div', { className: 'flex justify-between items-center' }, [
+                                    React.createElement('span', null, formatDate(dateStr)),
+                                    today && React.createElement('span', { 
+                                        className: 'bg-white text-green-600 text-xs font-black px-2 py-1 rounded-full' 
+                                    }, 'TODAY')
+                                ])
+                            ]),
+                            React.createElement('div', { className: 'p-4 space-y-4' }, [
+                                dayMenu.main && dayMenu.main.length > 0 && React.createElement('div', null, [
+                                    React.createElement('h4', { className: 'font-black text-gray-800 mb-2 flex items-center gap-2' }, ['🍖 Main Dishes']),
+                                    renderDishList(dayMenu.main, '•')
+                                ]),
+                                dayMenu.soups && dayMenu.soups.length > 0 && React.createElement('div', null, [
+                                    React.createElement('h4', { className: 'font-black text-gray-800 mb-2 flex items-center gap-2' }, ['🥣 Soups']),
+                                    renderDishList(dayMenu.soups, '•')
+                                ]),
+                                dayMenu.desserts && dayMenu.desserts.length > 0 && React.createElement('div', null, [
+                                    React.createElement('h4', { className: 'font-black text-gray-800 mb-2 flex items-center gap-2' }, ['🍰 Desserts']),
+                                    renderDishList(dayMenu.desserts, '•')
+                                ])
+                            ])
+                        ]);
+                    })
+                )
             ]);
         }
 
