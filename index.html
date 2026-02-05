@@ -34,8 +34,6 @@
         .tab-active { background-color: #0ea5e9; color: white; }
         .tab-inactive { background-color: #e0f2fe; color: #0369a1; }
         .dish-rating-badge { 
-            background: linear-gradient(135deg, #fbbf24, #f59e0b); 
-            color: #78350f; 
             padding: 4px 10px; 
             border-radius: 12px; 
             font-size: 0.85rem; 
@@ -43,7 +41,31 @@
             display: inline-flex; 
             align-items: center; 
             gap: 4px;
+        }
+        .rating-great {
+            background: linear-gradient(135deg, #22c55e, #16a34a);
+            color: white;
+            box-shadow: 0 2px 4px rgba(34, 197, 94, 0.3);
+        }
+        .rating-good {
+            background: linear-gradient(135deg, #84cc16, #65a30d);
+            color: white;
+            box-shadow: 0 2px 4px rgba(132, 204, 22, 0.3);
+        }
+        .rating-okay {
+            background: linear-gradient(135deg, #fbbf24, #f59e0b);
+            color: #78350f;
             box-shadow: 0 2px 4px rgba(251, 191, 36, 0.3);
+        }
+        .rating-poor {
+            background: linear-gradient(135deg, #f97316, #ea580c);
+            color: white;
+            box-shadow: 0 2px 4px rgba(249, 115, 22, 0.3);
+        }
+        .rating-bad {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            color: white;
+            box-shadow: 0 2px 4px rgba(239, 68, 68, 0.3);
         }
         .comment-field { 
             background: #f8fafc; 
@@ -298,6 +320,16 @@
                 return dishStats.find(s => s.id === dishId);
             };
 
+            // Helper to get rating badge class based on score
+            const getRatingBadgeClass = (avg) => {
+                const score = parseFloat(avg);
+                if (score >= 4.5) return 'rating-great';      // 4.5-5.0: Green (excellent)
+                if (score >= 3.5) return 'rating-good';       // 3.5-4.5: Lime (good)
+                if (score >= 2.5) return 'rating-okay';       // 2.5-3.5: Yellow/Orange (okay)
+                if (score >= 1.5) return 'rating-poor';       // 1.5-2.5: Orange (poor)
+                return 'rating-bad';                          // 1.0-1.5: Red (bad)
+            };
+
             if (!menu) return React.createElement('div', { className: 'glass-card p-12 text-center' }, "Waiting for today's menu...");
 
             const buildDishId = (category, dishName) => `${todayStr}_${category}_${dishName}`;
@@ -379,7 +411,9 @@
                             }, [
                                 React.createElement('div', { className: 'flex justify-center items-center gap-3 mb-4' }, [
                                     React.createElement('span', { className: `category-badge ${badgeClass}` }, type),
-                                    dishRating && React.createElement('span', { className: 'dish-rating-badge' }, [
+                                    dishRating && React.createElement('span', { 
+                                        className: `dish-rating-badge ${getRatingBadgeClass(dishRating.avg)}` 
+                                    }, [
                                         '⭐ ',
                                         dishRating.avg,
                                         React.createElement('span', { className: 'text-xs opacity-75 ml-1' }, `(${dishRating.count})`)
