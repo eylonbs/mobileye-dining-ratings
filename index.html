@@ -26,6 +26,8 @@
         .main-badge { background: #dcfce7; color: #166534; }
         .soup-badge { background: #fef9c3; color: #854d0e; }
         .dessert-badge { background: #fae8ff; color: #86198f; }
+        .vegan-cat-badge { background: #d1fae5; color: #047857; }
+        .fish-badge { background: #e0f2fe; color: #0369a1; }
         .leaderboard-card { border: 2px solid transparent; background-clip: padding-box; }
         .leaderboard-gold { border-color: #fbbf24; background-color: #fffbeb; }
         .leaderboard-red { border-color: #ef4444; background-color: #fef2f2; }
@@ -66,6 +68,32 @@
             background: linear-gradient(135deg, #ef4444, #dc2626);
             color: white;
             box-shadow: 0 2px 4px rgba(239, 68, 68, 0.3);
+        }
+        .vegan-badge {
+            background: linear-gradient(135deg, #22c55e, #16a34a);
+            color: white;
+            padding: 2px 8px;
+            border-radius: 8px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+        }
+        .vegan-filter-btn {
+            border: 2px solid #22c55e;
+            border-radius: 9999px;
+            padding: 6px 14px;
+            font-weight: 700;
+            transition: all 0.2s;
+        }
+        .vegan-filter-active {
+            background-color: #22c55e;
+            color: white;
+        }
+        .vegan-filter-inactive {
+            background-color: white;
+            color: #22c55e;
         }
         .comment-field { 
             background: #f8fafc; 
@@ -313,6 +341,7 @@
             const [selectedRatings, setSelectedRatings] = useState({}); // dishId -> rating 0-5
             const [selectedComments, setSelectedComments] = useState({}); // dishId -> comment string
             const [isSending, setIsSending] = useState(false);
+            const [showVeganOnly, setShowVeganOnly] = useState(false);
 
             // Helper to get dish stats by dishId
             const getDishRating = (dishId) => {
@@ -389,8 +418,14 @@
                 }
             };
 
-            const renderGroup = (title, items, type, badgeClass, icon) => {
-                const filteredItems = (items || []).filter(i => i.trim() !== '');
+            const renderGroup = (title, items, type, badgeClass, icon, isVeganCategory = false) => {
+                let filteredItems = (items || []).filter(i => i.trim() !== '');
+                
+                // Apply vegan filter - only show vegan category when filter is active
+                if (showVeganOnly && !isVeganCategory) {
+                    return null;
+                }
+                
                 if (filteredItems.length === 0) return null;
 
                 return React.createElement('section', { className: 'mb-8' }, [
@@ -409,8 +444,9 @@
                                 key: idx,
                                 className: 'glass-card p-6 flex flex-col h-full transition-all'
                             }, [
-                                React.createElement('div', { className: 'flex justify-center items-center gap-3 mb-4' }, [
+                                React.createElement('div', { className: 'flex justify-center items-center gap-2 mb-4 flex-wrap' }, [
                                     React.createElement('span', { className: `category-badge ${badgeClass}` }, type),
+                                    isVeganCategory && React.createElement('span', { className: 'vegan-badge' }, '🌱'),
                                     dishRating && React.createElement('span', { 
                                         className: `dish-rating-badge ${getRatingBadgeClass(dishRating.avg)}` 
                                     }, [
@@ -442,9 +478,18 @@
             };
 
             return React.createElement('div', { className: 'space-y-6' }, [
-                renderGroup('Main Dishes', menu.main, 'main', 'main-badge', '🍖'),
-                renderGroup("Today's Soups", menu.soups, 'soups', 'soup-badge', '🥣'),
-                renderGroup('Sweet Desserts', menu.desserts, 'desserts', 'dessert-badge', '🍰'),
+                // Vegan filter toggle
+                React.createElement('div', { className: 'flex justify-center' }, [
+                    React.createElement('button', {
+                        className: `vegan-filter-btn ${showVeganOnly ? 'vegan-filter-active' : 'vegan-filter-inactive'}`,
+                        onClick: () => setShowVeganOnly(!showVeganOnly)
+                    }, showVeganOnly ? '🌱 Showing Vegan Only' : '🌱 Show Vegan Only')
+                ]),
+                renderGroup('Main Dishes', menu.main, 'main', 'main-badge', '🍖', false),
+                renderGroup('🌱 Vegan/Vegetarian', menu.vegan, 'vegan', 'vegan-cat-badge', '🌱', true),
+                renderGroup('🐟 Fresh Fish', menu.fish, 'fish', 'fish-badge', '🐟', false),
+                renderGroup("Today's Soups", menu.soups, 'soups', 'soup-badge', '🥣', false),
+                renderGroup('Sweet Desserts', menu.desserts, 'desserts', 'dessert-badge', '🍰', false),
                 React.createElement('div', { className: 'flex justify-center mt-4' }, [
                     React.createElement('button', {
                         className: 'btn-primary px-8 py-3 disabled:opacity-50',
@@ -739,8 +784,16 @@
                             ]),
                             React.createElement('div', { className: 'p-4 space-y-4' }, [
                                 dayMenu.main && dayMenu.main.length > 0 && React.createElement('div', null, [
-                                    React.createElement('h4', { className: 'font-black text-gray-800 mb-2 text-center' }, '🍖 Main Dishes'),
+                                    React.createElement('h4', { className: 'font-black text-gray-800 mb-2 text-center' }, '🍖 Main'),
                                     renderDishList(dayMenu.main)
+                                ]),
+                                dayMenu.vegan && dayMenu.vegan.length > 0 && React.createElement('div', { className: 'bg-green-50 rounded-lg p-2 -mx-2' }, [
+                                    React.createElement('h4', { className: 'font-black text-green-700 mb-2 text-center' }, '🌱 Vegan/Vegetarian'),
+                                    renderDishList(dayMenu.vegan)
+                                ]),
+                                dayMenu.fish && dayMenu.fish.length > 0 && React.createElement('div', null, [
+                                    React.createElement('h4', { className: 'font-black text-gray-800 mb-2 text-center' }, '🐟 Fish'),
+                                    renderDishList(dayMenu.fish)
                                 ]),
                                 dayMenu.soups && dayMenu.soups.length > 0 && React.createElement('div', null, [
                                     React.createElement('h4', { className: 'font-black text-gray-800 mb-2 text-center' }, '🥣 Soups'),
