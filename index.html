@@ -164,12 +164,15 @@
             useEffect(() => {
                 if (!user) return;
                 const menuUnsub = db.collection('menus').doc(todayStr).onSnapshot(async doc => {
-                    if (doc.exists) {
+                    if (doc.exists && doc.data().main && doc.data().main.length > 0) {
                         setMenu(doc.data());
                     } else {
                         // Fallback to JSON file if no Firebase menu
                         try {
-                            const response = await fetch('menu-data-feb-2026.json');
+                            const now = new Date();
+                            const months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+                            const jsonFile = `menu-data-${months[now.getMonth()]}-${now.getFullYear()}.json`;
+                            const response = await fetch(jsonFile);
                             const data = await response.json();
                             if (data[todayStr]) {
                                 setMenu(data[todayStr]);
@@ -734,7 +737,10 @@
             useEffect(() => {
                 const loadWeeklyMenu = async () => {
                     try {
-                        const response = await fetch('menu-data-feb-2026.json');
+                        const now = new Date();
+                        const months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+                        const jsonFile = `menu-data-${months[now.getMonth()]}-${now.getFullYear()}.json`;
+                        const response = await fetch(jsonFile);
                         if (!response.ok) throw new Error('Failed to load menu');
                         const data = await response.json();
                         setWeeklyData(data);
