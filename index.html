@@ -163,8 +163,23 @@
 
             useEffect(() => {
                 if (!user) return;
-                const menuUnsub = db.collection('menus').doc(todayStr).onSnapshot(doc => {
-                    setMenu(doc.exists ? doc.data() : null);
+                const menuUnsub = db.collection('menus').doc(todayStr).onSnapshot(async doc => {
+                    if (doc.exists) {
+                        setMenu(doc.data());
+                    } else {
+                        // Fallback to JSON file if no Firebase menu
+                        try {
+                            const response = await fetch('menu-data-feb-2026.json');
+                            const data = await response.json();
+                            if (data[todayStr]) {
+                                setMenu(data[todayStr]);
+                            } else {
+                                setMenu(null);
+                            }
+                        } catch (e) {
+                            setMenu(null);
+                        }
+                    }
                 });
                 const ratingsUnsub = db.collection('ratings').where('todayStr', '==', todayStr).onSnapshot(snap => {
                     setAllRatings(snap.docs.map(d => d.data()));
@@ -299,24 +314,40 @@
         }
 
         function AdminPanel({ todayStr }) {
-            const [form, setForm] = useState({ main: ['', '', '', ''], soups: ['', ''], desserts: ['', '', ''] });
+            const [form, setForm] = useState({ 
+                main: ['', '', '', '', ''], 
+                plantBased: ['', ''], 
+                fish: [''], 
+                soups: ['', ''], 
+                desserts: ['', '', '', ''] 
+            });
 
             useEffect(() => {
                 db.collection('menus').doc(todayStr).get().then(doc => {
-                    if (doc.exists) setForm(doc.data());
+                    if (doc.exists) {
+                        const data = doc.data();
+                        // Merge with defaults to handle missing fields
+                        setForm(prev => ({
+                            main: data.main || prev.main,
+                            plantBased: data.plantBased || prev.plantBased,
+                            fish: data.fish || prev.fish,
+                            soups: data.soups || prev.soups,
+                            desserts: data.desserts || prev.desserts
+                        }));
+                    }
                 });
             }, [todayStr]);
 
             const save = () => db.collection('menus').doc(todayStr).set(form);
 
-            const InputGroup = (label, type, size) => React.createElement('div', { className: 'space-y-2' }, [
+            const InputGroup = (label, type, size, bgColor = '') => React.createElement('div', { className: `space-y-2 ${bgColor}` }, [
                 React.createElement('h4', { className: 'font-black text-gray-600' }, label),
                 ...Array(size).fill(0).map((_, i) => React.createElement('input', {
                     key: i,
                     placeholder: `Option ${i + 1}`,
-                    value: form[type][i],
+                    value: (form[type] && form[type][i]) || '',
                     onChange: e => {
-                        const newArr = [...form[type]];
+                        const newArr = [...(form[type] || [])];
                         newArr[i] = e.target.value;
                         setForm({ ...form, [type]: newArr });
                     },
@@ -326,10 +357,12 @@
 
             return React.createElement('div', { className: 'glass-card p-6 mb-6' }, [
                 React.createElement('h3', { className: 'text-xl font-black mb-6 text-blue-600' }, 'MANAGER DASHBOARD'),
-                React.createElement('div', { className: 'grid grid-cols-1 md:grid-cols-3 gap-6 mb-6' }, [
-                    InputGroup('Main Dishes', 'main', 4),
-                    InputGroup('Soups', 'soups', 2),
-                    InputGroup('Desserts', 'desserts', 3)
+                React.createElement('div', { className: 'grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6' }, [
+                    InputGroup('🍖 Main Dishes', 'main', 5),
+                    InputGroup('🌱 Plant-Based', 'plantBased', 2),
+                    InputGroup('🐟 Fish', 'fish', 1),
+                    InputGroup('🥣 Soups', 'soups', 2),
+                    InputGroup('🍰 Desserts', 'desserts', 4)
                 ]),
                 React.createElement('button', { onClick: save, className: 'btn-primary px-8 py-3' }, 'Update Menu ✨')
             ]);
@@ -483,10 +516,10 @@
                     React.createElement('button', {
                         className: `vegan-filter-btn ${showVeganOnly ? 'vegan-filter-active' : 'vegan-filter-inactive'}`,
                         onClick: () => setShowVeganOnly(!showVeganOnly)
-                    }, showVeganOnly ? '🌱 Showing Vegan Only' : '🌱 Show Vegan Only')
+                    }, showVeganOnly ? '🌱 Showing Plant-Based Only' : '🌱 Show Plant-Based Only')
                 ]),
                 renderGroup('Main Dishes', menu.main, 'main', 'main-badge', '🍖', false),
-                renderGroup('🌱 Vegan/Vegetarian', menu.vegan, 'vegan', 'vegan-cat-badge', '🌱', true),
+                renderGroup('🌱 Plant-Based', menu.plantBased, 'plant-based', 'vegan-cat-badge', '🌱', true),
                 renderGroup('🐟 Fresh Fish', menu.fish, 'fish', 'fish-badge', '🐟', false),
                 renderGroup("Today's Soups", menu.soups, 'soups', 'soup-badge', '🥣', false),
                 renderGroup('Sweet Desserts', menu.desserts, 'desserts', 'dessert-badge', '🍰', false),
@@ -715,14 +748,17 @@
             }, []);
 
             const formatDate = (dateStr) => {
-                const date = new Date(dateStr);
+                // Parse date manually to avoid timezone issues
+                const [year, month, day] = dateStr.split('-').map(Number);
+                const date = new Date(year, month - 1, day); // month is 0-indexed
                 const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
                 const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
                 return `${days[date.getDay()]}, ${months[date.getMonth()]} ${date.getDate()}`;
             };
 
             const isToday = (dateStr) => {
-                const today = new Date().toISOString().split('T')[0];
+                const now = new Date();
+                const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
                 return dateStr === today;
             };
 
@@ -787,9 +823,9 @@
                                     React.createElement('h4', { className: 'font-black text-gray-800 mb-2 text-center' }, '🍖 Main'),
                                     renderDishList(dayMenu.main)
                                 ]),
-                                dayMenu.vegan && dayMenu.vegan.length > 0 && React.createElement('div', { className: 'bg-green-50 rounded-lg p-2 -mx-2' }, [
-                                    React.createElement('h4', { className: 'font-black text-green-700 mb-2 text-center' }, '🌱 Vegan/Vegetarian'),
-                                    renderDishList(dayMenu.vegan)
+                                dayMenu.plantBased && dayMenu.plantBased.length > 0 && React.createElement('div', { className: 'bg-green-50 rounded-lg p-2 -mx-2' }, [
+                                    React.createElement('h4', { className: 'font-black text-green-700 mb-2 text-center' }, '🌱 Plant-Based'),
+                                    renderDishList(dayMenu.plantBased)
                                 ]),
                                 dayMenu.fish && dayMenu.fish.length > 0 && React.createElement('div', null, [
                                     React.createElement('h4', { className: 'font-black text-gray-800 mb-2 text-center' }, '🐟 Fish'),
