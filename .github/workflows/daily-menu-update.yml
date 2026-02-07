@@ -5,6 +5,9 @@ on:
     # Run every day at 6 AM Israel time (4 AM UTC)
     - cron: '0 4 * * *'
   workflow_dispatch: # Allow manual trigger
+  push:
+    paths:
+      - 'menu.csv'  # Also run when menu.csv is updated
 
 jobs:
   update-menu:
@@ -21,7 +24,24 @@ jobs:
       - name: Install dependencies
         run: npm install --ignore-scripts
       
-      - name: Scrape and upload menu
+      - name: Generate JSON and upload to Firebase
         env:
-                  FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: node scripts/scrape-and-upload.js
+      
+      - name: Commit updated JSON file
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          
+          # Find and add any menu-data JSON files
+          git add menu-data-*.json || true
+          
+          # Check if there are changes to commit
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Auto-update menu JSON from CSV [skip ci]"
+            git push
+            echo "✅ JSON file committed and pushed"
+          fi
