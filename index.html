@@ -507,7 +507,7 @@
                     React.createElement('div', { className: 'flex items-center justify-center gap-3 mb-4' }, [
                         React.createElement('h2', { className: 'text-2xl font-black text-gray-800' }, title)
                     ]),
-                    React.createElement('div', { className: 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 justify-items-center' },
+                    React.createElement('div', { className: 'flex flex-wrap justify-center gap-6' },
                         filteredItems.map((item, idx) => {
                             const dishId = buildDishId(type, item);
                             const selected = selectedRatings[dishId] || 0;
@@ -516,7 +516,7 @@
 
                             return React.createElement('div', {
                                 key: idx,
-                                className: 'glass-card p-6 flex flex-col h-full transition-all'
+                                className: 'glass-card p-6 flex flex-col h-full transition-all w-full sm:w-72 lg:w-80'
                             }, [
                                 dishRating && React.createElement('div', { className: 'flex justify-center mb-3' }, [
                                     React.createElement('span', { 
