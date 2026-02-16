@@ -147,7 +147,11 @@
             const [isAdmin, setIsAdmin] = useState(false);
             const [menu, setMenu] = useState(null);
             const [allRatings, setAllRatings] = useState([]);
-            const [todayStr] = useState(new Date().toISOString().split('T')[0]);
+            // Use local timezone for date (not UTC)
+            const [todayStr] = useState(() => {
+                const now = new Date();
+                return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+            });
             const [activeTab, setActiveTab] = useState('today'); // 'today' | 'history' | 'weekly'
 
             useEffect(() => {
