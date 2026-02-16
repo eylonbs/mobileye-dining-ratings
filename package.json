@@ -3,11 +3,11 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-    "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "parse-pdf": "node scripts/parse-pdf-menu.js"
   },
   "dependencies": {
     "react": "^18.2.0",
@@ -16,7 +16,9 @@
     "firebase": "^10.7.1",
     "firebase-admin": "^12.0.0",
     "puppeteer": "^22.0.0",
-    "csv-parse": "^5.5.3"
+    "csv-parse": "^5.5.3",
+    "googleapis": "^131.0.0",
+    "pdf-parse": "^1.1.1"
   },
   "devDependencies": {
     "@types/react": "^18.2.43",

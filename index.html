@@ -605,6 +605,8 @@
                 renderGroup('🌱 Plant-Based', menu.plantBased, 'plant-based', true),
                 renderGroup('🐟 Fresh Fish', menu.fish, 'fish', false),
                 renderGroup('🥣 Soups', menu.soups, 'soups', false),
+                renderGroup('🍟 Side Dishes', menu.sides, 'sides', false),
+                renderGroup('🥗 Salads', menu.salads, 'salads', false),
                 renderGroup('🍰 Desserts', menu.desserts, 'desserts', false),
                 
                 // General ratings section (salads, side dishes, cleaning)
@@ -1206,6 +1208,14 @@
                                 dayMenu.soups && dayMenu.soups.length > 0 && React.createElement('div', null, [
                                     React.createElement('h4', { className: 'font-black text-gray-800 mb-2 text-center' }, '🥣 Soups'),
                                     renderDishList(dayMenu.soups)
+                                ]),
+                                dayMenu.sides && dayMenu.sides.length > 0 && React.createElement('div', null, [
+                                    React.createElement('h4', { className: 'font-black text-gray-800 mb-2 text-center' }, '🍟 Sides'),
+                                    renderDishList(dayMenu.sides)
+                                ]),
+                                dayMenu.salads && dayMenu.salads.length > 0 && React.createElement('div', null, [
+                                    React.createElement('h4', { className: 'font-black text-gray-800 mb-2 text-center' }, '🥗 Salads'),
+                                    renderDishList(dayMenu.salads)
                                 ]),
                                 dayMenu.desserts && dayMenu.desserts.length > 0 && React.createElement('div', null, [
                                     React.createElement('h4', { className: 'font-black text-gray-800 mb-2 text-center' }, '🍰 Desserts'),
