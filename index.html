@@ -271,7 +271,6 @@
                 ]),
 
                 isAdmin && React.createElement(AdminPanel, { todayStr, key: 'admin' }),
-                activeTab === 'today' && dishStats.length > 0 && React.createElement(TopSection, { stats: dishStats, key: 'top' }),
                 activeTab === 'today' && React.createElement(RatingSection, { menu, todayStr, dishStats, key: 'rating' }),
                 activeTab === 'weekly' && React.createElement(WeeklyMenuPage, { key: 'weekly' }),
                 activeTab === 'report' && React.createElement(DailyReportPage, { key: 'report' }),
@@ -279,23 +278,6 @@
             ]);
         }
 
-        function TopSection({ stats }) {
-            const best = stats[0];
-            const worst = stats[stats.length - 1];
-
-            return React.createElement('div', { className: 'grid grid-cols-1 md:grid-cols-2 gap-6 mb-6' }, [
-                best && React.createElement('div', { className: 'glass-card p-6 leaderboard-gold animate-pulse-slow text-center' }, [
-                    React.createElement('p', { className: 'text-xs font-black text-yellow-600 uppercase mb-2' }, '👑 The Employee Choice'),
-                    React.createElement('h3', { className: 'text-xl font-black text-gray-800' }, best.dishName),
-                    React.createElement('p', { className: 'text-3xl font-black text-yellow-500 mt-2' }, `⭐ ${best.avg}`)
-                ]),
-                worst && worst.avg <= 2.5 && React.createElement('div', { className: 'glass-card p-6 leaderboard-red text-center' }, [
-                    React.createElement('p', { className: 'text-xs font-black text-red-600 uppercase mb-2' }, "🚫 DON'T TRUST THE CHEF"),
-                    React.createElement('h3', { className: 'text-xl font-black text-gray-800' }, worst.dishName),
-                    React.createElement('p', { className: 'text-3xl font-black text-red-500 mt-2' }, `⭐ ${worst.avg}`)
-                ])
-            ]);
-        }
 
         function Login() {
             const [email, setEmail] = useState('');
@@ -525,7 +507,7 @@
                     React.createElement('div', { className: 'flex items-center justify-center gap-3 mb-4' }, [
                         React.createElement('h2', { className: 'text-2xl font-black text-gray-800' }, title)
                     ]),
-                    React.createElement('div', { className: 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6' },
+                    React.createElement('div', { className: 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 justify-items-center' },
                         filteredItems.map((item, idx) => {
                             const dishId = buildDishId(type, item);
                             const selected = selectedRatings[dishId] || 0;
