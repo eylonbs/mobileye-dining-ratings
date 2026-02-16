@@ -18,7 +18,8 @@
     "puppeteer": "^22.0.0",
     "csv-parse": "^5.5.3",
     "googleapis": "^131.0.0",
-    "pdf-parse": "^1.1.1"
+    "pdf-parse": "^1.1.1",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/react": "^18.2.43",

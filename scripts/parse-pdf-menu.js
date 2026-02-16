@@ -2,6 +2,7 @@ import { google } from 'googleapis';
 import fs from 'fs';
 import path from 'path';
 import pdfParse from 'pdf-parse';
+import * as XLSX from 'xlsx';
 
 // --- 1. CONFIGURATION ---
 const CSV_OUTPUT_PATH = './menu.csv';
@@ -330,7 +331,25 @@ function simplePDFToCSV(text, dateRange) {
   return convertToCSV(dateRange, categories);
 }
 
-// --- 9. MAIN EXECUTION ---
+// --- 9. PARSE EXCEL FILE ---
+function parseExcelFile(buffer, fileName) {
+  console.log('📊 Parsing Excel file...');
+  
+  const workbook = XLSX.read(buffer, { type: 'buffer' });
+  const sheetName = workbook.SheetNames[0];
+  const sheet = workbook.Sheets[sheetName];
+  
+  // Convert to CSV
+  const csvContent = XLSX.utils.sheet_to_csv(sheet);
+  
+  console.log('\n📝 Excel Content Preview (first 500 chars):');
+  console.log(csvContent.substring(0, 500));
+  console.log('\n');
+  
+  return csvContent;
+}
+
+// --- 10. MAIN EXECUTION ---
 async function main() {
   const fileId = process.env.PDF_FILE_ID;
   
@@ -345,37 +364,55 @@ async function main() {
   }
   
   try {
-    // Download PDF
+    // Download file from Google Drive
     const { pdfBuffer, tempPath, fileName } = await downloadPDF(fileId);
     
-    // Parse PDF
-    const data = await pdfParse(pdfBuffer);
-    const text = data.text;
-    const lines = text.split('\n').map(l => l.trim()).filter(l => l);
-    
-    console.log('\n📝 PDF Text Preview (first 500 chars):');
-    console.log(text.substring(0, 500));
-    console.log('\n');
-    
-    // Extract date range
-    const dateRange = extractDateRange(lines);
-    
-    // Try structured parsing first
+    const fileExt = fileName.toLowerCase().split('.').pop();
     let csvContent;
-    const categories = structureMenuData(lines);
     
-    // Check if we got meaningful data
-    const totalDishes = Object.values(categories).reduce(
-      (sum, cat) => sum + cat.reduce((s, day) => s + day.length, 0), 
-      0
-    );
-    
-    if (totalDishes >= 5) {
-      console.log(`✅ Structured parsing found ${totalDishes} dishes`);
-      csvContent = convertToCSV(dateRange, categories);
+    // Handle different file types
+    if (fileExt === 'xlsx' || fileExt === 'xls') {
+      // Excel file - convert directly to CSV
+      console.log('📑 Detected Excel file');
+      csvContent = parseExcelFile(pdfBuffer, fileName);
+      
+    } else if (fileExt === 'csv') {
+      // Already CSV
+      console.log('📑 Detected CSV file');
+      csvContent = pdfBuffer.toString('utf-8');
+      
+    } else if (fileExt === 'pdf') {
+      // PDF file - parse text
+      console.log('📑 Detected PDF file');
+      const data = await pdfParse(pdfBuffer);
+      const text = data.text;
+      const lines = text.split('\n').map(l => l.trim()).filter(l => l);
+      
+      console.log('\n📝 PDF Text Preview (first 500 chars):');
+      console.log(text.substring(0, 500));
+      console.log('\n');
+      
+      // Extract date range
+      const dateRange = extractDateRange(lines);
+      
+      // Try structured parsing first
+      const categories = structureMenuData(lines);
+      
+      // Check if we got meaningful data
+      const totalDishes = Object.values(categories).reduce(
+        (sum, cat) => sum + cat.reduce((s, day) => s + day.length, 0), 
+        0
+      );
+      
+      if (totalDishes >= 5) {
+        console.log(`✅ Structured parsing found ${totalDishes} dishes`);
+        csvContent = convertToCSV(dateRange, categories);
+      } else {
+        console.log('⚠️ Structured parsing found few dishes, trying fallback...');
+        csvContent = simplePDFToCSV(text, dateRange);
+      }
     } else {
-      console.log('⚠️ Structured parsing found few dishes, trying fallback...');
-      csvContent = simplePDFToCSV(text, dateRange);
+      throw new Error(`Unsupported file type: ${fileExt}`);
     }
     
     // Write CSV file
@@ -391,7 +428,7 @@ async function main() {
       fs.unlinkSync(tempPath);
     }
     
-    console.log('\n✨ PDF parsing completed!');
+    console.log('\n✨ File parsing completed!');
     
   } catch (error) {
     console.error('❌ Error:', error.message);
