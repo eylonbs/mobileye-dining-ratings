@@ -141,6 +141,60 @@
         const db = firebase.firestore();
         const { useState, useEffect, useMemo } = React;
 
+        // GitHub Pages menu files are named menu-data-{mon}-{year}.json; scrape-and-upload.js
+        // names the file from the menu week's Sunday, while the browser used to only ask for
+        // "current calendar month" — try nearby months so cross-month weeks still resolve.
+        const MENU_MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+
+        function menuJsonMonthYearSuffixes(baseDate) {
+            const y = baseDate.getFullYear();
+            const m = baseDate.getMonth();
+            const seen = new Set();
+            const out = [];
+            for (const delta of [0, -1, 1, -2, 2]) {
+                const d = new Date(y, m + delta, 1);
+                const key = `${MENU_MONTHS[d.getMonth()]}-${d.getFullYear()}`;
+                if (!seen.has(key)) {
+                    seen.add(key);
+                    out.push(key);
+                }
+            }
+            return out;
+        }
+
+        async function loadMenuDataForToday(todayStr) {
+            const now = new Date();
+            for (const suffix of menuJsonMonthYearSuffixes(now)) {
+                try {
+                    const response = await fetch(`menu-data-${suffix}.json`);
+                    if (!response.ok) continue;
+                    const data = await response.json();
+                    if (data && data[todayStr]) return data[todayStr];
+                } catch (e) {
+                    /* try next candidate */
+                }
+            }
+            return null;
+        }
+
+        async function loadFullMenuJson() {
+            const now = new Date();
+            let lastMessage = 'Failed to load menu';
+            for (const suffix of menuJsonMonthYearSuffixes(now)) {
+                try {
+                    const response = await fetch(`menu-data-${suffix}.json`);
+                    if (!response.ok) continue;
+                    const data = await response.json();
+                    if (data && typeof data === 'object' && Object.keys(data).length > 0) {
+                        return data;
+                    }
+                } catch (e) {
+                    if (e && e.message) lastMessage = e.message;
+                }
+            }
+            throw new Error(lastMessage);
+        }
+
         function App() {
             const [user, setUser] = useState(null);
             const [loading, setLoading] = useState(true);
@@ -171,16 +225,12 @@
                     // Always try to load from JSON first (has all categories including plantBased)
                     let jsonMenu = null;
                     try {
-                        const now = new Date();
-                        const months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
-                        const jsonFile = `menu-data-${months[now.getMonth()]}-${now.getFullYear()}.json`;
-                        const response = await fetch(jsonFile);
-                        const data = await response.json();
-                        if (data[todayStr]) {
-                            jsonMenu = data[todayStr];
-                        }
+                        jsonMenu = await loadMenuDataForToday(todayStr);
                     } catch (e) {
                         console.log('No JSON menu file found');
+                    }
+                    if (!jsonMenu) {
+                        console.log('No JSON menu entry for', todayStr);
                     }
                     
                     // Use JSON if available (has plantBased), otherwise fall back to Firebase
@@ -1090,12 +1140,7 @@
             useEffect(() => {
                 const loadWeeklyMenu = async () => {
                     try {
-                        const now = new Date();
-                        const months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
-                        const jsonFile = `menu-data-${months[now.getMonth()]}-${now.getFullYear()}.json`;
-                        const response = await fetch(jsonFile);
-                        if (!response.ok) throw new Error('Failed to load menu');
-                        const data = await response.json();
+                        const data = await loadFullMenuJson();
                         setWeeklyData(data);
                     } catch (err) {
                         setError(err.message);

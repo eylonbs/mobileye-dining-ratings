@@ -7,6 +7,9 @@ import * as XLSX from 'xlsx';
 // --- 1. CONFIGURATION ---
 const CSV_OUTPUT_PATH = './menu.csv';
 
+/** Production menu inbox (override with env GOOGLE_DRIVE_FOLDER_ID if it moves). */
+const CANONICAL_MENU_DRIVE_FOLDER_ID = '10ci6Q2Q8-rGd4QRnV9CF4l2_FUDAAEhh';
+
 // Hebrew day names mapping (both long and short forms)
 const DAY_NAMES_HE = ['יום ראשון', 'יום שני', 'יום שלישי', 'יום רביעי', 'יום חמישי'];
 const DAY_NAMES_SHORT = ["א'", "ב'", "ג'", "ד'", "ה'"];
@@ -68,13 +71,51 @@ async function getGoogleAuth() {
   return auth;
 }
 
-// --- 3. DOWNLOAD PDF FROM GOOGLE DRIVE ---
+/**
+ * Refuse to import unless the file sits under the allowed folder (direct child or nested).
+ * Prevents accidental processing if the webhook ever sends a different file id.
+ */
+async function assertFileUnderAllowedFolder(drive, fileId, allowedFolderId) {
+  const queue = [fileId];
+  const seen = new Set();
+
+  while (queue.length > 0) {
+    const id = queue.shift();
+    if (seen.has(id)) continue;
+    seen.add(id);
+
+    const { data } = await drive.files.get({
+      fileId: id,
+      fields: 'id, name, parents',
+    });
+    const parents = data.parents || [];
+
+    if (parents.includes(allowedFolderId)) {
+      console.log(`✅ Drive path OK: file is under folder ${allowedFolderId}`);
+      return;
+    }
+    for (const pid of parents) {
+      if (!seen.has(pid)) queue.push(pid);
+    }
+  }
+
+  throw new Error(
+    `Refusing to import file ${fileId}: not under allowed Drive folder ${allowedFolderId}. ` +
+      'Use the same folder as Apps Script (see docs/MENU_UPLOAD_SETUP.md) and share it with the service account.'
+  );
+}
+
+// --- 3. DOWNLOAD FILE FROM GOOGLE DRIVE ---
 async function downloadPDF(fileId) {
-  console.log('📥 Downloading PDF from Google Drive...');
-  
+  console.log('📥 Downloading menu file from Google Drive...');
+
   const auth = await getGoogleAuth();
   const drive = google.drive({ version: 'v3', auth });
-  
+
+  const allowedFolderId =
+    (process.env.GOOGLE_DRIVE_FOLDER_ID || '').trim() || CANONICAL_MENU_DRIVE_FOLDER_ID;
+  await assertFileUnderAllowedFolder(drive, fileId, allowedFolderId);
+
   // Get file metadata
   const fileMetadata = await drive.files.get({
     fileId,

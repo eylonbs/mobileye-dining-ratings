@@ -36,6 +36,8 @@ jobs:
         env:
           GOOGLE_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SERVICE_ACCOUNT }}
           PDF_FILE_ID: ${{ github.event.client_payload.file_id }}
+          # Optional override; parse script defaults to production menu folder if unset
+          GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
         run: node scripts/parse-pdf-menu.js
       
       - name: Commit updated CSV

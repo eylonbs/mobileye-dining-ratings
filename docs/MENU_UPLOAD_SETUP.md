@@ -8,15 +8,17 @@ This guide explains how to set up the automated PDF upload system for the Mobile
 Operations Team → Google Drive → GitHub Actions → App Updated
 ```
 
-## Step 1: Create Google Drive Shared Folder
+## Step 1: Google Drive menu folder
 
-1. Go to [Google Drive](https://drive.google.com)
-2. Create a new folder called **"Mobileye Menu Uploads"**
-3. Right-click the folder → **Share**
-4. Add the operations team members who will upload menus
-5. **Important**: Copy the folder ID from the URL:
-   - URL looks like: `https://drive.google.com/drive/folders/1ABC123xyz...`
-   - The folder ID is: `1ABC123xyz...`
+Production menu uploads use this folder (team drops the weekly file here):
+
+- **Folder**: [Mobileye menu inbox on Drive](https://drive.google.com/drive/folders/10ci6Q2Q8-rGd4QRnV9CF4l2_FUDAAEhh)
+- **Folder ID** (for Apps Script + GitHub): `10ci6Q2Q8-rGd4QRnV9CF4l2_FUDAAEhh`
+
+Share that folder with:
+
+- Operations people who upload menus (Editor or Content manager as you prefer)
+- The Google Cloud **service account** email (Viewer is enough for the import script)
 
 ## Step 2: Create Google Cloud Service Account
 
@@ -39,11 +41,10 @@ This allows GitHub Actions to access the Google Drive folder.
    - Go to "Keys" tab
    - Add Key → Create new key → JSON
    - Download the JSON file (keep it safe!)
-6. Share the Drive folder with the service account:
+6. Share the **production menu folder** with the service account:
    - Copy the service account email (looks like: `menu-uploader@project.iam.gserviceaccount.com`)
-   - Go back to Google Drive
-   - Share the "Mobileye Menu Uploads" folder with this email
-   - Give it "Viewer" access
+   - Open the [menu folder](https://drive.google.com/drive/folders/10ci6Q2Q8-rGd4QRnV9CF4l2_FUDAAEhh) → Share
+   - Add the service account with **Viewer** access
 
 ## Step 3: Add GitHub Secrets
 
@@ -54,7 +55,7 @@ This allows GitHub Actions to access the Google Drive folder.
 | Secret Name | Value |
 |-------------|-------|
 | `GOOGLE_SERVICE_ACCOUNT` | Paste the entire JSON content from the key file |
-| `GOOGLE_DRIVE_FOLDER_ID` | The folder ID from Step 1 |
+| `GOOGLE_DRIVE_FOLDER_ID` | Optional: `10ci6Q2Q8-rGd4QRnV9CF4l2_FUDAAEhh` (the parser defaults to this if omitted) |
 | `GITHUB_PAT` | A Personal Access Token (for the Apps Script webhook) |
 
 ### Creating a GitHub Personal Access Token (PAT):
@@ -66,7 +67,7 @@ This allows GitHub Actions to access the Google Drive folder.
 
 ## Step 4: Set Up Google Apps Script
 
-1. Go to the Google Drive folder you created
+1. Open the [menu folder on Drive](https://drive.google.com/drive/folders/10ci6Q2Q8-rGd4QRnV9CF4l2_FUDAAEhh)
 2. Click New → More → Google Apps Script
 3. Delete any existing code and paste this:
 
@@ -76,19 +77,23 @@ const GITHUB_OWNER = 'eylonbs';
 const GITHUB_REPO = 'mobileye-dining-ratings';
 const GITHUB_PAT = 'YOUR_GITHUB_PAT_HERE'; // Replace with your token
 
+function isMenuFileName(fileName) {
+  const n = fileName.toLowerCase();
+  return n.endsWith('.pdf') || n.endsWith('.csv') || n.endsWith('.xlsx') || n.endsWith('.xls');
+}
+
 // ===== MAIN FUNCTION =====
 function onFileUpload(e) {
   const file = e.source;
   const fileName = file.getName();
-  
-  // Only process PDF files
-  if (!fileName.toLowerCase().endsWith('.pdf')) {
-    console.log('Skipping non-PDF file:', fileName);
+
+  if (!isMenuFileName(fileName)) {
+    console.log('Skipping non-menu file:', fileName);
     return;
   }
-  
-  console.log('New PDF uploaded:', fileName);
-  
+
+  console.log('New menu file uploaded:', fileName);
+
   // Trigger GitHub Actions
   triggerGitHubWorkflow(file.getId(), fileName);
 }
@@ -124,8 +129,8 @@ function triggerGitHubWorkflow(fileId, fileName) {
 
 // ===== SETUP TRIGGER =====
 function setupTrigger() {
-  // Get the folder ID
-  const folderId = 'YOUR_FOLDER_ID_HERE'; // Replace with your folder ID
+  // Must match the shared menu folder (same ID as GitHub secret / parse script)
+  const folderId = '10ci6Q2Q8-rGd4QRnV9CF4l2_FUDAAEhh';
   
   // Delete existing triggers
   const triggers = ScriptApp.getProjectTriggers();
@@ -157,13 +162,12 @@ function checkForNewFiles() {
     const file = files.next();
     const fileName = file.getName();
     
-    // Only process PDF files
-    if (!fileName.toLowerCase().endsWith('.pdf')) continue;
+    if (!isMenuFileName(fileName)) continue;
     
     const modifiedDate = file.getLastUpdated();
     
     if (modifiedDate > lastCheckDate) {
-      console.log('New/updated PDF found:', fileName);
+      console.log('New/updated menu file found:', fileName);
       triggerGitHubWorkflow(file.getId(), fileName);
       newFileFound = true;
     }
@@ -173,15 +177,14 @@ function checkForNewFiles() {
   PropertiesService.getScriptProperties().setProperty('LAST_CHECK', new Date().toISOString());
   
   if (!newFileFound) {
-    console.log('No new PDF files found');
+    console.log('No new menu files found');
   }
 }
 ```
 
 4. Replace `YOUR_GITHUB_PAT_HERE` with your GitHub PAT
-5. Replace `YOUR_FOLDER_ID_HERE` with your Google Drive folder ID
-6. Save the script (Ctrl+S or Cmd+S)
-7. Run the `setupTrigger` function:
+5. Save the script (Ctrl+S or Cmd+S)
+6. Run the `setupTrigger` function:
    - Click the function dropdown (next to Debug)
    - Select `setupTrigger`
    - Click Run
@@ -191,9 +194,9 @@ function checkForNewFiles() {
 
 Once set up, the operations team simply:
 
-1. Opens the "Mobileye Menu Uploads" folder in Google Drive
-2. Drags and drops the weekly menu PDF
-3. Within 5 minutes, the app automatically updates!
+1. Opens the [menu folder on Drive](https://drive.google.com/drive/folders/10ci6Q2Q8-rGd4QRnV9CF4l2_FUDAAEhh)
+2. Uploads the weekly menu as **PDF**, **CSV**, or **Excel** (`.xlsx` / `.xls`) — same formats `scripts/parse-pdf-menu.js` supports
+3. Within a few minutes (Apps Script poll + Actions), `menu.csv` / `menu-data-*.json` update and GitHub Pages picks up the new commit
 
 ## Troubleshooting
 
