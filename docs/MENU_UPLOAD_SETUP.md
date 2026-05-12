@@ -56,14 +56,16 @@ This allows GitHub Actions to access the Google Drive folder.
 |-------------|-------|
 | `GOOGLE_SERVICE_ACCOUNT` | Paste the entire JSON content from the key file |
 | `GOOGLE_DRIVE_FOLDER_ID` | Optional: `10ci6Q2Q8-rGd4QRnV9CF4l2_FUDAAEhh` (the parser defaults to this if omitted) |
-| `GITHUB_PAT` | A Personal Access Token (for the Apps Script webhook) |
+| `FIREBASE_SERVICE_ACCOUNT` | Firebase Admin JSON (used by `scrape-and-upload.js` to write `menu-data-*.json` and Firestore) |
+
+The GitHub token for Drive → `repository_dispatch` lives in **Google Apps Script** (script property `GITHUB_PAT`), not in GitHub Actions secrets.
 
 ### Creating a GitHub Personal Access Token (PAT):
 1. Go to GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic)
 2. Generate new token
 3. Name: "Menu Upload Webhook"
-4. Select scope: `repo` (full control of private repositories)
-5. Copy the token and save it as `GITHUB_PAT` secret
+4. Select scope: **`repo`** (classic), **or** a fine-grained token on this repo with **Contents: Read and write** (required for [`repository_dispatch`](https://docs.github.com/en/rest/repos/repos#create-a-repository-dispatch-event))
+5. Copy the token — you will paste it into Apps Script as property **`GITHUB_PAT`** (see **Step 4** below).
 
 ## Step 4: Set Up Google Apps Script
 
@@ -75,7 +77,15 @@ This allows GitHub Actions to access the Google Drive folder.
 // ===== CONFIGURATION =====
 const GITHUB_OWNER = 'eylonbs';
 const GITHUB_REPO = 'mobileye-dining-ratings';
-const GITHUB_PAT = 'YOUR_GITHUB_PAT_HERE'; // Replace with your token
+// Best: Project Settings → Script properties → add GITHUB_PAT (do not commit a real token).
+// Fallback for quick tests only:
+const GITHUB_PAT_FALLBACK = 'YOUR_GITHUB_PAT_HERE';
+
+function githubPat() {
+  const p = PropertiesService.getScriptProperties().getProperty('GITHUB_PAT');
+  if (p) return p;
+  return GITHUB_PAT_FALLBACK;
+}
 
 function isMenuFileName(fileName) {
   const n = fileName.toLowerCase();
@@ -100,7 +110,12 @@ function onFileUpload(e) {
 
 function triggerGitHubWorkflow(fileId, fileName) {
   const url = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/dispatches`;
-  
+  const pat = githubPat();
+  if (!pat || pat.indexOf('YOUR_GITHUB') === 0) {
+    console.error('Configure GITHUB_PAT in Script properties or GITHUB_PAT_FALLBACK');
+    return;
+  }
+
   const payload = {
     event_type: 'menu-pdf-upload',
     client_payload: {
@@ -108,20 +123,28 @@ function triggerGitHubWorkflow(fileId, fileName) {
       file_name: fileName
     }
   };
-  
+
   const options = {
     method: 'post',
     headers: {
-      'Authorization': `Bearer ${GITHUB_PAT}`,
-      'Accept': 'application/vnd.github.v3+json',
+      'Authorization': 'Bearer ' + pat,
+      'Accept': 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
       'Content-Type': 'application/json'
     },
-    payload: JSON.stringify(payload)
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true
   };
-  
+
   try {
     const response = UrlFetchApp.fetch(url, options);
-    console.log('GitHub workflow triggered successfully:', response.getResponseCode());
+    const code = response.getResponseCode();
+    const body = response.getContentText();
+    if (code === 204) {
+      console.log('GitHub repository_dispatch accepted (204). Open Actions → Daily Menu Update.');
+    } else {
+      console.error('GitHub dispatch failed HTTP', code, body);
+    }
   } catch (error) {
     console.error('Failed to trigger GitHub workflow:', error);
   }
@@ -182,7 +205,7 @@ function checkForNewFiles() {
 }
 ```
 
-4. Replace `YOUR_GITHUB_PAT_HERE` with your GitHub PAT
+4. Add a **Script property** `GITHUB_PAT` (recommended): Project Settings (gear) → Script properties → Add `GITHUB_PAT` = your token. You can leave `GITHUB_PAT_FALLBACK` as the placeholder.
 5. Save the script (Ctrl+S or Cmd+S)
 6. Run the `setupTrigger` function:
    - Click the function dropdown (next to Debug)
@@ -201,14 +224,15 @@ Once set up, the operations team simply:
 ## Troubleshooting
 
 ### Check if it's working:
-1. Go to GitHub → Actions tab
-2. Look for "Menu PDF Upload" workflow runs
-3. Check the logs for any errors
+1. Go to GitHub → **Actions** tab
+2. Open workflow **Daily Menu Update** (runs after each Drive upload webhook, on schedule, or when `menu.csv` / the scraper script changes)
+3. Open the latest run → confirm **parse-pdf** (on Drive upload) then **update-menu** both succeed; you should see a new commit updating `menu-data-*.json`
 
 ### Common issues:
 - **PDF not parsed correctly**: Make sure the PDF has a clear table structure
-- **Workflow not triggered**: Check the Apps Script logs (View → Logs)
-- **Authentication errors**: Verify the GitHub PAT has `repo` scope
+- **Workflow not triggered**: In Apps Script, run **Executions** and confirm `checkForNewFiles` runs every 5 minutes; fix any HTTP 401/403 in logs (PAT or token scope). You can run `triggerGitHubWorkflow` manually with a file ID to test.
+- **Authentication errors**: Classic PAT needs **`repo`** scope; fine-grained needs **Contents: Read and write** on `mobileye-dining-ratings`
+- **JSON not updating after parse**: Ensure **Daily Menu Update** run shows **update-menu** on the latest commit (workflow now hard-resets to `origin/<branch>` so it always picks up the new `menu.csv` from **parse-pdf**)
 
 ## Manual Fallback
 
