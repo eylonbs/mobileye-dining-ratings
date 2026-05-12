@@ -14,7 +14,6 @@ const db = admin.firestore();
 
 // --- 2. CONFIGURATION ---
 const CSV_FILE_PATH = './menu.csv';
-const JSON_OUTPUT_PATH = './menu-data-feb-2026.json'; // Will be renamed dynamically
 
 // Hebrew day names mapping (column index to day info)
 const DAY_NAMES = {
@@ -59,6 +58,7 @@ const CATEGORY_MAPPING = {
   // Fish
   'עמדת דג יומית': 'fish',
   'דג יומית': 'fish',
+  'דג היום': 'fish',
   'דגים': 'fish',
   
   // Side dishes (NEW)
@@ -115,25 +115,46 @@ function getMonthName(month) {
   return months[month];
 }
 
+/** Excel/Drive exports often use row 1 as ",יום ראשון,יום שני,…" with an empty first cell. */
+function hasWeeklyDayHeaderRow(row) {
+  if (!row || row.length < 3) return false;
+  let hits = 0;
+  for (let i = 1; i <= 5 && i < row.length; i++) {
+    const t = (row[i] || '').trim();
+    if (!t) continue;
+    if (/יום (ראשון|שני|שלישי|רביעי|חמישי)/.test(t)) hits++;
+    else if (["א'", "ב'", "ג'", "ד'", "ה'"].includes(t)) hits++;
+  }
+  return hits >= 2;
+}
+
+function startOfWeekSunday(d) {
+  const x = new Date(d);
+  const dow = x.getDay();
+  x.setDate(x.getDate() - dow);
+  x.setHours(0, 0, 0, 0);
+  return x;
+}
+
 // --- 4. CSV PROCESSING ---
 async function processCSV() {
   console.log('📄 Reading CSV file...');
   const fileContent = fs.readFileSync(CSV_FILE_PATH, 'utf-8');
   const rows = parse(fileContent, { skip_empty_lines: false, relax_quotes: true, relax_column_count: true });
 
-  // Detect format: old format has date range, new format has "פריט" header
+  // Detect format: old format has date range in A1, new format has "פריט" or Hebrew weekday column headers
   const firstCell = rows[0][0]?.trim() || '';
-  const isNewFormat = firstCell === 'פריט' || firstCell.includes('פריט');
-  
+  const isNewFormat =
+    firstCell === 'פריט' ||
+    firstCell.includes('פריט') ||
+    hasWeeklyDayHeaderRow(rows[0]);
+
   let startDate;
-  
+
   if (isNewFormat) {
-    // New format: no date range, use current week
-    console.log('📋 Detected new menu format (פריט header)');
-    const now = new Date();
-    const dayOfWeek = now.getDay();
-    startDate = new Date(now);
-    startDate.setDate(now.getDate() - dayOfWeek); // Go to Sunday
+    // New format: no date range in A1 — anchor week to "today" in the runner's timezone (GitHub: UTC)
+    console.log('📋 Detected new menu format (item column or weekday header row)');
+    startDate = startOfWeekSunday(new Date());
     console.log(`📅 Using current week starting: ${formatDateISO(startDate)}`);
   } else {
     // Old format: parse date range from header (e.g., "01.02.2026-05.02.2026")
@@ -142,6 +163,11 @@ async function processCSV() {
     const [startDateStr, endDateStr] = dateRange.split('-').map(s => s.trim());
     startDate = parseDate(startDateStr);
     console.log(`📅 Week: ${startDateStr} to ${endDateStr}`);
+  }
+
+  if (Number.isNaN(startDate.getTime())) {
+    console.warn('⚠️ Invalid week start from CSV; using Sunday-based week from today.');
+    startDate = startOfWeekSunday(new Date());
   }
 
   // Initialize menu data structure with new categories
@@ -225,6 +251,9 @@ async function processCSV() {
 
 // --- 5. SAVE JSON FILE ---
 function saveJSON(menuData, startDate) {
+  if (Number.isNaN(startDate.getTime())) {
+    throw new Error('Cannot write menu JSON: invalid week start date');
+  }
   const month = getMonthName(startDate.getMonth());
   const year = startDate.getFullYear();
   const jsonPath = `./menu-data-${month}-${year}.json`;

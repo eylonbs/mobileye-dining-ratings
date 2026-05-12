@@ -166,7 +166,7 @@
             const now = new Date();
             for (const suffix of menuJsonMonthYearSuffixes(now)) {
                 try {
-                    const response = await fetch(`menu-data-${suffix}.json`);
+                    const response = await fetch(`menu-data-${suffix}.json`, { cache: 'no-store' });
                     if (!response.ok) continue;
                     const data = await response.json();
                     if (data && data[todayStr]) return data[todayStr];
@@ -182,7 +182,7 @@
             let lastMessage = 'Failed to load menu';
             for (const suffix of menuJsonMonthYearSuffixes(now)) {
                 try {
-                    const response = await fetch(`menu-data-${suffix}.json`);
+                    const response = await fetch(`menu-data-${suffix}.json`, { cache: 'no-store' });
                     if (!response.ok) continue;
                     const data = await response.json();
                     if (data && typeof data === 'object' && Object.keys(data).length > 0) {
